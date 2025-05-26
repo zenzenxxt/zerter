@@ -359,7 +359,7 @@ function App() {
               </p>
               <div className="relative h-48 md:h-56 lg:h-64 overflow-hidden rounded-lg shadow-md">
                 <img
-                  src="https://placehold.co/600x400.png"
+                  src="https://res.cloudinary.com/dcx5ryha9/image/upload/v1748299942/Programmer_tl3sj5.png"
                   alt="Create & Configure"
                   data-ai-hint="teacher computer"
                   className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-500"
@@ -378,7 +378,7 @@ function App() {
               </p>
               <div className="relative h-48 md:h-56 lg:h-64 overflow-hidden rounded-lg shadow-md">
                 <img
-                  src="https://placehold.co/600x400.png"
+                  src="https://res.cloudinary.com/dcx5ryha9/image/upload/v1748299942/Video_call_dh0iax.png"
                   alt="Take Secure Exams"
                   data-ai-hint="student laptop"
                   className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-500"
@@ -397,7 +397,7 @@ function App() {
               </p>
               <div className="relative h-48 md:h-56 lg:h-64 overflow-hidden rounded-lg shadow-md">
                 <img
-                  src="https://placehold.co/600x400.png"
+                  src="https://res.cloudinary.com/dcx5ryha9/image/upload/v1748299942/Analytics_lavdvu.png"
                   alt="Review & Analyze"
                   data-ai-hint="analytics chart"
                   className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-500"
@@ -468,7 +468,7 @@ function App() {
                 <div className="flex flex-col lg:flex-row">
                   <div className="lg:w-1/2 p-0 relative h-72 lg:h-auto">
                     <img
-                      src="https://placehold.co/600x450.png"
+                      src="https://res.cloudinary.com/dcx5ryha9/image/upload/v1748301227/user-panel-business-dashboard_1_ao7aa4.png"
                       alt="Teacher Dashboard"
                       data-ai-hint="teacher interface"
                       className="w-full h-full object-cover object-center"
@@ -519,7 +519,7 @@ function App() {
                 <div className="flex flex-col lg:flex-row">
                   <div className="lg:w-2/3 p-0 relative h-72 lg:h-auto">
                     <img
-                      src="https://placehold.co/800x450.png"
+                      src="https://res.cloudinary.com/dcx5ryha9/image/upload/v1748301227/user-panel-business-dashboard_1_ao7aa4.png"
                       alt="Student Experience"
                       data-ai-hint="student exam"
                       className="w-full h-full object-cover object-center"
@@ -570,7 +570,7 @@ function App() {
                 <div className="flex flex-col lg:flex-row">
                   <div className="lg:w-2/3 p-0 relative h-72 lg:h-auto">
                     <img
-                      src="https://placehold.co/800x450.png"
+                      src="https://res.cloudinary.com/dcx5ryha9/image/upload/v1748301227/user-panel-business-dashboard_1_ao7aa4.png"
                       alt="Admin Controls"
                       data-ai-hint="admin panel"
                       className="w-full h-full object-cover object-center"
