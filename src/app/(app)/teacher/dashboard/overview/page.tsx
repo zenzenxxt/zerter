@@ -94,33 +94,6 @@ export default function TeacherOverviewPage() {
           The statistics on this overview page are placeholders. Detailed, real-time analytics are available on individual exam result pages.
         </AlertDescription>
       </Alert>
-
-      <div className="md:col-span-2 lg:col-span-3 card-3d p-6 mt-4">
-        <h3 className="text-xl font-semibold text-slate-700 mb-6">Overall Exam Analytics (Placeholders)</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-slate-100/70 p-4 rounded-xl shadow-inner">
-                <h4 className="text-lg font-medium text-slate-600 mb-2">Avg. Completion Rate</h4>
-                <div className="relative w-full h-4 bg-slate-200 rounded-full overflow-hidden">
-                    <Progress value={0} className="h-4 progress-bar-light" style={{ '--progress-width': `0%` } as React.CSSProperties} />
-                </div>
-                <p className="text-3xl font-bold text-blue-600 mt-2">N/A</p>
-                <p className="text-xs text-slate-500">Across all exams.</p>
-            </div>
-            <div className="bg-slate-100/70 p-4 rounded-xl shadow-inner">
-                <h4 className="text-lg font-medium text-slate-600 mb-2">Overall Average Score</h4>
-                <div className="flex items-baseline gap-2">
-                <p className="text-3xl font-bold text-green-600">N/A</p>
-                <span className="text-sm text-slate-500">/ 100</span>
-                </div>
-                <p className="text-xs text-slate-500 mt-1">Average score of all exams.</p>
-            </div>
-            <div className="bg-slate-100/70 p-4 rounded-xl shadow-inner">
-                <h4 className="text-lg font-medium text-slate-600 mb-2">Most Flagged Exam (Overall)</h4>
-                <p className="text-xl font-semibold text-red-600">N/A</p>
-                <p className="text-sm text-slate-500">0 flags</p>
-            </div>
-        </div>
-       </div>
       
       <div className="grid gap-8 md:grid-cols-2">
         <div className="card-3d p-6">
