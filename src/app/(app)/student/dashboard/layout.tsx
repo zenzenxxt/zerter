@@ -89,10 +89,12 @@ export default function StudentDashboardLayout({
   const showFullHeader = pathname === '/student/dashboard/overview' || pathname === '/student/dashboard';
 
   return (
-    <div className="relative flex size-full min-h-screen flex-col group/design-root overflow-x-hidden">
-      {/* This div is the direct parent of aside and main, ensuring it manages height correctly */}
-      <div className="flex flex-row flex-1 overflow-hidden"> {/* MODIFIED: flex-1 and overflow-hidden */}
-        <aside className="w-72 sidebar-bg p-6 flex flex-col justify-between h-full shrink-0"> {/* MODIFIED: min-h-screen to h-full */}
+    // Outermost div: takes flex-1 from parent, is flex-col, and hides its own overflow
+    <div className="relative flex flex-1 flex-col overflow-hidden group/design-root">
+      {/* InnerFlexWrapper: parent of aside and main, uses flex-row, takes flex-1, and hides its own vertical overflow */}
+      <div className="flex flex-row flex-1 overflow-y-hidden">
+        {/* Sidebar: fixed width, no shrink, full height of parent, scrolls internally if content is too long */}
+        <aside className="w-72 sidebar-bg p-6 flex flex-col justify-between h-full shrink-0 overflow-y-auto scrollbar-thin">
           <div>
             <div className="flex items-center gap-3 mb-10">
               <Link href="/" className="flex items-center gap-2">
@@ -128,6 +130,7 @@ export default function StudentDashboardLayout({
             </Button>
           </div>
         </aside>
+        {/* Main Content: takes remaining width, scrolls its own content vertically */}
         <main className="flex-1 p-4 bg-slate-50 overflow-y-auto">
           {showFullHeader && (
             <header className={cn(

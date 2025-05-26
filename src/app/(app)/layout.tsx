@@ -11,7 +11,8 @@ export default function AppLayout({
     // This (app)/layout.tsx is now simpler.
     // Student and Teacher dashboard layouts will define their full structure including sidebars and internal headers.
     // No shared header or footer at this (app) level for dashboard routes.
-    <div className="flex flex-1 min-h-screen"> {/* Ensure it takes up available space */}
+    // Changed to flex-col to ensure its children (dashboard layouts) can use flex-1 correctly.
+    <div className="flex flex-1 flex-col"> {/* Ensure it takes up available space and acts as a flex container */}
         {children}
     </div>
   );
