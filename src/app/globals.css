@@ -178,22 +178,21 @@ main {
 
 /* THIS IS THE NEW SIDEBAR BACKGROUND */
 .sidebar-bg {
-    background-color: hsla(204,0%,100%,1); /* From user's snippet */
-    background-image: /* From user's snippet */
+    background-color: hsla(204,0%,100%,1);
+    background-image:
         radial-gradient(circle at 0% 0%, hsla(295.99999999999994,77%,74%,0.35) 3.1210986267166043%,transparent 40%),
         radial-gradient(circle at 20% 0%, hsla(236.91176470588243,77%,74%,0.35) 3.1210986267166043%,transparent 40%),
         radial-gradient(circle at 40% 0%, hsla(186.61764705882354,77%,74%,0.35) 3.1210986267166043%,transparent 40%),
         radial-gradient(circle at 60% 0%, hsla(127.0588235294118,77%,74%,0.35) 3.1210986267166043%,transparent 40%),
         radial-gradient(circle at 80% 0%, hsla(62.20588235294117,77%,74%,0.35) 3.1210986267166043%,transparent 40%),
         radial-gradient(circle at 100% 0%, hsla(23.823529411764703,77%,74%,0.35) 3%,transparent 40%);
-    background-blend-mode: normal,normal,normal,normal,normal,normal; /* From user's snippet */
-    backdrop-filter: blur(20px) saturate(150%); /* Kept from original glassmorphism */
-    -webkit-backdrop-filter: blur(20px) saturate(150%); /* Kept for Safari */
-    border-right: 1px solid rgba(255, 255, 255, 0.2); /* Kept from original glassmorphism */
+    background-blend-mode:normal,normal,normal,normal,normal,normal;
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border-right: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .sidebar-glass { /* Default sidebar glass effect, replaced by sidebar-bg for the new design */
-   /* @apply bg-[hsl(var(--sidebar-background)/0.9)] dark:bg-[hsl(var(--sidebar-background)/0.85)] backdrop-blur-md border-r border-sidebar-border/60 dark:border-sidebar-border/40 shadow-xl; */
     @apply sidebar-bg; /* Use the new mesh gradient */
 }
 
@@ -216,35 +215,6 @@ main {
         inset 0px 1px 0px rgba(255, 255, 255, 0.65),
         inset 0px -2px 4px rgba(30, 41, 59, 0.06);
 }
-
-/* Removing old .sidebar-item as ShadCN handles its own items */
-/* .sidebar-item {
-    transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-    border-radius: 8px; 
-}
-.sidebar-item:hover {
-    background-color: rgba(255, 255, 255, 0.2);
-    transform: translateX(3px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); 
-}
-.sidebar-item.active {
-    background-color: rgba(255, 255, 255, 0.3);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); 
-    font-weight: 600; 
-} */
-
-.progress-bar-light { /* Used if ShadCN progress cannot be styled this way */
-    background: linear-gradient(to right, #3B82F6 var(--progress-width, 0%), #E0E7FF var(--progress-width, 0%));
-}
-
-.logout-button-gradient-light {
-    background-image: linear-gradient(to right, #F87171, #EF4444);
-    color: white;
-}
-.logout-button-gradient-light:hover {
-    background-image: linear-gradient(to right, #EF4444, #DC2626);
-}
-/* END NEW STYLES */
 
 
 html:not(.dark) {
@@ -289,16 +259,6 @@ h4 { @apply text-lg sm:text-xl; }
   @apply text-primary; /* Primary color for icons on light card-like background */
 }
 
-/* Custom override for sm:p-6 if needed globally, but prefer utility class changes in JSX */
-@layer utilities {
-    @media (min-width: 640px) {
-        /* This rule was added per user request, but applying p-2 or sm:p-2 directly in JSX is often cleaner */
-        /* .sm\:p-6 {
-            padding: 0.5rem; 
-        } */
-    }
-}
-
 /* Thin scrollbar for scrollable areas */
 .scrollbar-thin {
   scrollbar-width: thin;
@@ -323,3 +283,53 @@ h4 { @apply text-lg sm:text-xl; }
 .dark .scrollbar-thumb-slate-600::-webkit-scrollbar-thumb {
     background-color: #475569; /* slate-600 */
 }
+
+/* CSS Ping Animation for Proctoring Status Dot */
+.ping {
+  --uib-size: 10px; /* Adjusted size for status dot */
+  --uib-speed: 1.2s; /* Slightly slower for a calmer pulse */
+  --uib-color: #3950cf; /* Default color, will be overridden */
+  position: relative;
+  height: var(--uib-size);
+  width: var(--uib-size);
+}
+
+.ping::before,
+.ping::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  border-radius: 50%;
+  background-color: var(--uib-color);
+  animation: pulse7132 var(--uib-speed) linear infinite;
+  transform: scale(0);
+  opacity: 0;
+}
+
+.ping::after {
+  animation-delay: calc(var(--uib-speed) / -2);
+}
+
+@keyframes pulse7132 {
+  0% {
+    transform: scale(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+.ping-green {
+  --uib-color: #22c55e; /* Tailwind green-500 */
+}
+
+.ping-red {
+  --uib-color: #ef4444; /* Tailwind red-500 */
+}
+
+/* END NEW STYLES */
