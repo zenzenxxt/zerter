@@ -9,7 +9,7 @@ export default function AppLayout({
 }) {
   return (
     // This (app)/layout.tsx's div should be a flex container that allows its child (the specific dashboard layout)
-    // to grow and fill the available space.
+    // to grow and fill the available space. It no longer needs min-h-screen if dashboards use SidebarProvider.
     <div className="flex flex-1 flex-col"> {/* Ensures it takes up available space and acts as a flex container */}
         {children}
     </div>

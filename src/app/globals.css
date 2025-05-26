@@ -67,16 +67,16 @@ main {
     --gradient-positive-start: 140 60% 45%;
     --gradient-positive-end: 150 70% 55%;
 
-    /* Sidebar specific theme variables - Blue Theme (can be overridden by new sidebar styles) */
-    --sidebar-background: 0 0% 98%; 
-    --sidebar-foreground: 220 15% 35%; 
-    --sidebar-primary: 211 100% 50%; 
-    --sidebar-primary-foreground: 0 0% 100%; 
-    --sidebar-accent: 211 100% 95%; 
-    --sidebar-accent-foreground: 211 100% 30%; 
-    --sidebar-border: 220 15% 88%; 
-    --sidebar-ring: 211 100% 50%; 
-    --sidebar-group-text: 220 10% 55%; 
+    /* Sidebar specific theme variables - Blue Theme */
+    --sidebar-background: 0 0% 98%; /* A very light grey, almost white, for the base sidebar color */
+    --sidebar-foreground: 220 15% 35%; /* Dark text for sidebar items */
+    --sidebar-primary: 211 100% 95%; /* Light blue background for active items to match image */
+    --sidebar-primary-foreground: 211 100% 40%; /* Darker blue text for active items */
+    --sidebar-accent: 211 100% 97%; /* Even lighter blue for hover, or white with opacity */
+    --sidebar-accent-foreground: 211 100% 45%; /* Text color on hover */
+    --sidebar-border: 220 15% 88%; /* Border color for sidebar elements or its own border */
+    --sidebar-ring: 211 100% 50%; /* Focus ring for sidebar elements */
+    --sidebar-group-text: 220 10% 55%; /* Text for group labels */
   }
 
   .dark {
@@ -116,11 +116,12 @@ main {
     --gradient-positive-start: 140 50% 50%;
     --gradient-positive-end: 150 60% 60%;
 
+    /* Dark theme sidebar variables (can be adjusted to match new design if a dark variant is needed) */
     --sidebar-background: 220 15% 15%; 
     --sidebar-foreground: 220 10% 88%;
-    --sidebar-primary: 211 100% 60%; 
+    --sidebar-primary: 211 100% 30%; /* Example: Darker blue for active items */
     --sidebar-primary-foreground: 0 0% 100%; 
-    --sidebar-accent: 211 100% 25%; 
+    --sidebar-accent: 211 100% 25%; /* Example: Slightly lighter dark blue for hover */
     --sidebar-accent-foreground: 211 100% 85%; 
     --sidebar-border: 220 15% 28%;
     --sidebar-ring: 211 100% 70%;
@@ -160,13 +161,14 @@ main {
 }
 
 /* Sidebar specific styling for active items and hover - Blue Theme */
-/* This might be overridden by new sidebar styles if they use different data attributes or classes */
+/* These are for the ShadCN Sidebar now */
 [data-sidebar="menu-button"][data-active="true"] {
    @apply bg-sidebar-primary text-sidebar-primary-foreground shadow-md hover:bg-sidebar-primary/90;
 }
 [data-sidebar="menu-button"]:not([data-active="true"]):hover {
-  @apply bg-sidebar-accent text-sidebar-accent-foreground shadow-[0_0_15px_0_hsl(var(--primary)/0.5)]; /* Glowing hover effect */
+  @apply bg-sidebar-accent text-sidebar-accent-foreground; 
 }
+
 
 /* Glassmorphism Card Style - Enhanced for modals on standard backgrounds */
 .glass-card {
@@ -174,11 +176,7 @@ main {
   @apply bg-card/95 dark:bg-card/85 border border-border/50 dark:border-border/30 shadow-2xl rounded-xl transition-all duration-300 hover:shadow-primary/20;
 }
 
-.sidebar-glass { /* Default sidebar glass effect, can be overridden by new sidebar-bg */
-   @apply bg-[hsl(var(--sidebar-background)/0.9)] dark:bg-[hsl(var(--sidebar-background)/0.85)] backdrop-blur-md border-r border-sidebar-border/60 dark:border-sidebar-border/40 shadow-xl;
-}
-
-/* NEW STYLES from user's provided HTML */
+/* THIS IS THE NEW SIDEBAR BACKGROUND */
 .sidebar-bg {
     background-image:
         radial-gradient(at 0% 0%, hsla(240, 80%, 95%, 0.3) 0px, transparent 50%),
@@ -189,7 +187,12 @@ main {
     -webkit-backdrop-filter: blur(20px) saturate(150%);
     border-right: 1px solid rgba(255, 255, 255, 0.2);
 }
+.sidebar-glass { /* Default sidebar glass effect, replaced by sidebar-bg for the new design */
+   /* @apply bg-[hsl(var(--sidebar-background)/0.9)] dark:bg-[hsl(var(--sidebar-background)/0.85)] backdrop-blur-md border-r border-sidebar-border/60 dark:border-sidebar-border/40 shadow-xl; */
+    @apply sidebar-bg; /* Use the new mesh gradient */
+}
 
+/* NEW STYLES from user's provided HTML for card-3d */
 .card-3d {
     background-color: #FFFFFF; /* Uses direct color, not HSL var --card */
     border-radius: 16px; /* Corresponds to approx rounded-xl */
@@ -209,20 +212,21 @@ main {
         inset 0px -2px 4px rgba(30, 41, 59, 0.06);
 }
 
-.sidebar-item {
+/* Removing old .sidebar-item as ShadCN handles its own items */
+/* .sidebar-item {
     transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-    border-radius: 8px; /* Tailwind: rounded-lg */
+    border-radius: 8px; 
 }
 .sidebar-item:hover {
     background-color: rgba(255, 255, 255, 0.2);
     transform: translateX(3px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* shadow-md */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); 
 }
 .sidebar-item.active {
     background-color: rgba(255, 255, 255, 0.3);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); /* shadow-lg */
-    font-weight: 600; /* Tailwind: font-semibold */
-}
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); 
+    font-weight: 600; 
+} */
 
 .progress-bar-light { /* Used if ShadCN progress cannot be styled this way */
     background: linear-gradient(to right, #3B82F6 var(--progress-width, 0%), #E0E7FF var(--progress-width, 0%));
