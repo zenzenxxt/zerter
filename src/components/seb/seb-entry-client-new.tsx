@@ -70,7 +70,7 @@ interface SebEntryClientNewProps {
 
 export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParamsHook = useSearchParams(); // Renamed to avoid conflict
   const { supabase, isLoading: authContextLoading } = useAuth();
   const { toast } = useToast();
 
@@ -102,12 +102,13 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
     setMounted(true);
   }, []);
 
-  const tokenFromQueryString = useMemo(() => {
-    if (mounted && searchParams) {
-      return searchParams.get('token');
+  // Derived state for token from useSearchParams, used as a fallback.
+  const tokenFromQueryHook = useMemo(() => {
+    if (mounted && searchParamsHook) {
+      return searchParamsHook.get('token');
     }
     return null;
-  }, [searchParams, mounted]);
+  }, [searchParamsHook, mounted]);
 
   useEffect(() => {
     const effectId = `[SebEntryClientNew TokenDeterminationEffect ${Date.now().toString().slice(-4)}]`;
@@ -116,19 +117,26 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
     if (entryTokenFromPath) {
       console.log(`${effectId} Using token from path: ${entryTokenFromPath.substring(0,10)}...`);
       determinedToken = entryTokenFromPath;
-    } else if (tokenFromQueryString) {
-      console.log(`${effectId} Using token from query string: ${tokenFromQueryString.substring(0,10)}...`);
-      determinedToken = tokenFromQueryString;
-    } else if (mounted) { // Only log missing if mounted and still no token from query
-        console.log(`${effectId} No token found in path or query string (component mounted).`);
+    } else if (mounted && typeof window !== 'undefined') {
+      // Prioritize direct parsing from window.location.search after mount
+      const currentUrlSearchParams = new URLSearchParams(window.location.search);
+      const tokenFromWindow = currentUrlSearchParams.get('token');
+
+      if (tokenFromWindow) {
+        console.log(`${effectId} Using token from window.location.search: ${tokenFromWindow.substring(0,10)}...`);
+        determinedToken = tokenFromWindow;
+      } else if (tokenFromQueryHook) { // Fallback to useSearchParams-derived value
+        console.log(`${effectId} Using token from useSearchParams (tokenFromQueryHook): ${tokenFromQueryHook.substring(0,10)}...`);
+        determinedToken = tokenFromQueryHook;
+      } else {
+        console.log(`${effectId} No token found in path, window.location.search, or useSearchParams (component mounted).`);
+      }
     }
-    // Set to null if not found, or the token value.
-    // This effect will run multiple times: initially, when mounted changes, when searchParams changes.
-    // We only want to set tokenForValidation once it's definitively determined or confirmed missing.
-    if (mounted) { // Only update tokenForValidation once mounted to avoid premature nulls
+
+    if (mounted) { // Only update tokenForValidation once mounted
         setTokenForValidation(determinedToken);
     }
-  }, [entryTokenFromPath, tokenFromQueryString, mounted]);
+  }, [entryTokenFromPath, tokenFromQueryHook, mounted]);
 
 
   useEffect(() => {
@@ -142,15 +150,16 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
           if (!examDetails || !(examDetails.enable_webcam_proctoring ?? false)) return true;
           try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            stream.getTracks().forEach(track => track.stop());
+            stream.getTracks().forEach(track => track.stop()); // Release camera immediately after check
             await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
             return true;
           } catch (err) {
             console.error("[SebEntryClientNew] Webcam/MediaPipe prerequisite check failed:", err);
+            globalToast({ title: "Webcam/Proctoring Check Failed", description: getSafeErrorMessage(err, "Could not access webcam or load proctoring models."), variant: "destructive", duration: 7000 });
             return false;
           }
         },
-        isCritical: false, 
+        isCritical: examDetails ? (examDetails.enable_webcam_proctoring ?? false) : false, // Will be updated once examDetails loads
         status: 'pending',
         icon: CameraIcon,
       },
@@ -168,35 +177,15 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
         )
       );
     } else {
-      setSecurityChecks(initialChecks.map(c => ({ ...c, status: 'pending' })));
+      // Initialize with default criticality for webcam, will be updated once examDetails are loaded
+      setSecurityChecks(initialChecks.map(c => ({ ...c, status: 'pending', isCritical: c.id === 'webcamAndMediaPipe' ? false : c.isCritical })));
     }
-  }, [isDevModeActive, examDetails]);
+  }, [isDevModeActive, examDetails]); // Rerun when examDetails changes
 
   const handleExitSeb = useCallback(() => {
     globalToast({ title: "Exiting SEB", description: "Safe Exam Browser will attempt to close.", duration: 3000 });
     if (typeof window !== 'undefined') window.location.href = "seb://quit";
   }, []);
-
-  useEffect(() => {
-    if (
-      stage === 'error' ||
-      stage === 'securityChecksFailed' ||
-      stage === 'examCompleted' ||
-      (stage === 'readyToStart')
-    ) {
-      setShowExitSebButton(true);
-    } else if (
-      stage === 'validatingToken' ||
-      stage === 'fetchingDetails' ||
-      stage === 'performingSecurityChecks' ||
-      stage === 'startingExamSession' ||
-      stage === 'examInProgress' ||
-      stage === 'submittingExam'
-    ) {
-      setShowExitSebButton(false);
-    }
-  }, [stage, isPreviouslySubmitted]);
-
 
   useEffect(() => {
     async function validateAndFetch() {
@@ -206,13 +195,12 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
 
       if (stage === 'initializing' || (stage === 'validatingToken' && !validatedExamId)) {
         
-        if (!tokenForValidation) { // Use the state variable now
-          // This might happen if token is not in path and searchParams not yet processed or no token in query
-          if (mounted && stage === 'initializing') { // if mounted and still no token, then it's truly missing
-            const errorMsg = "CRITICAL: SEB entry token missing from URL.";
+        if (!tokenForValidation) {
+          if (mounted && stage === 'initializing') { 
+            const errorMsg = "CRITICAL: SEB entry token missing or could not be determined.";
+            console.error(`[SebEntryClientNew validateAndFetch] ${errorMsg}. entryTokenFromPath: ${entryTokenFromPath}, tokenFromQueryHook (memoized): ${tokenFromQueryHook}`);
             setPageError(errorMsg); setStage('error'); return;
           }
-          // Otherwise, might still be waiting for tokenForValidation to be set
           return; 
         }
 
@@ -297,6 +285,17 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
           setExamDetails(fetchedExam); 
           setStudentProfile(fetchedStudent);
 
+          // Update securityChecks with actual proctoring setting
+          const proctoringEnabledForThisExam = fetchedExam.enable_webcam_proctoring ?? false;
+          setSecurityChecks(prevChecks =>
+            prevChecks.map(check =>
+              check.id === 'webcamAndMediaPipe'
+                ? { ...check, isCritical: proctoringEnabledForThisExam, status: 'pending' } // Reset status for re-check if needed
+                : check
+            )
+          );
+
+
           if (fetchedExam.questions && fetchedExam.questions.length > 0) {
             setIsDataReadyForExam(true);
             if (isPreviouslySubmitted) {
@@ -317,13 +316,11 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
 
     if (mounted && (stage === 'initializing' || stage === 'validatingToken' || stage === 'fetchingDetails')) {
       if (stage === 'initializing' && !tokenForValidation && !authContextLoading) {
-        // If mounted, initialized, but no token determined yet, it's likely an actual missing token
-        // The TokenDeterminationEffect should set tokenForValidation to null if none found
-        // This validateAndFetch effect will then catch the null tokenForValidation
+        // This is already handled by the error throwing logic above if tokenForValidation is null after mount
       }
       validateAndFetch();
     }
-  }, [stage, tokenForValidation, isDevModeActive, supabase, authContextLoading, validatedExamId, validatedStudentId, isPreviouslySubmitted, mounted]);
+  }, [stage, tokenForValidation, isDevModeActive, supabase, authContextLoading, validatedExamId, validatedStudentId, isPreviouslySubmitted, mounted, entryTokenFromPath, tokenFromQueryHook]);
 
   const runSecurityChecks = useCallback(async () => {
     if (!examDetails || !studentProfile || !validatedStudentId) {
@@ -336,19 +333,11 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
 
     const proctoringEnabledForThisExam = examDetails.enable_webcam_proctoring ?? false;
 
-    let currentChecks = [...securityChecks];
-
-    currentChecks = currentChecks.map(check => {
-        if (check.id === 'webcamAndMediaPipe') {
-            return {
-                ...check,
-                isCritical: proctoringEnabledForThisExam,
-                status: 'pending' 
-            };
-        }
-        return {...check, status: 'pending'}; 
-    });
-    setSecurityChecks(currentChecks); 
+    // Ensure securityChecks state is up-to-date with the latest examDetails.enable_webcam_proctoring
+    // This might involve setting state again if examDetails was just fetched.
+    // The useEffect for initialChecks already handles this.
+    
+    let currentChecks = [...securityChecks]; // Use a copy of the current state
 
     for (let i = 0; i < currentChecks.length; i++) {
       const check = currentChecks[i];
@@ -516,21 +505,18 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
 
   const isLoadingCriticalStages = stage === 'initializing' || stage === 'validatingToken' || stage === 'fetchingDetails' || (authContextLoading && stage === 'initializing');
 
-  if (isLoadingCriticalStages && !pageError && !tokenForValidation && mounted) {
-     // If mounted and token is still null after TokenDeterminationEffect, it means no token was found.
-     // This is a specific state that should lead to an error rather than infinite loading.
+  useEffect(() => {
+    if (isLoadingCriticalStages && !pageError && !tokenForValidation && mounted) {
      if (stage === 'initializing' || stage === 'validatingToken') {
-        // Only set error if we are in a stage where token is expected.
-        // If we already passed token validation and are in fetchingDetails, it's not a token issue.
-        const errorMsg = "CRITICAL: SEB entry token missing or could not be determined.";
-        // To avoid an infinite loop of setting error and re-triggering effects,
-        // we only set this if pageError is currently null.
-        if (!pageError) {
+        if (!pageError) { // Avoid infinite loop if pageError is already set
+            const errorMsg = "CRITICAL: SEB entry token missing or could not be determined.";
+            console.error(`[SebEntryClientNew isLoadingCriticalStages check] ${errorMsg}. Current Stage: ${stage}, TokenForValidation: ${tokenForValidation}, AuthContextLoading: ${authContextLoading}`);
             setPageError(errorMsg);
             setStage('error');
         }
      }
-  }
+    }
+  }, [isLoadingCriticalStages, pageError, tokenForValidation, mounted, stage, authContextLoading]);
 
 
   if (isLoadingCriticalStages && !pageError) {
@@ -630,8 +616,6 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
   }
 
   if (!examDetails || !studentProfile || !isDataReadyForExam) {
-    // This state should ideally be caught by the pageError block if fetching failed.
-    // If it's reached, it means data fetching completed but variables are still null.
     return (
       <main className="min-h-screen w-full flex flex-col items-center justify-center bg-background text-foreground overflow-hidden p-2">
         <Card className="w-full max-w-lg text-center bg-card p-6 sm:p-8 rounded-xl shadow-xl border-destructive/50">
@@ -659,7 +643,7 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
       <ExamTakingInterface
         examDetails={examDetails}
         questions={examDetails.questions || []}
-        parentIsLoading={isSubmittingViaApi}
+        parentIsLoading={isSubmittingViaApi} // Use isSubmittingViaApi here
         onAnswerChange={() => { }} 
         onSubmitExam={(answers, browserFlags, interfaceActualStartTime) => handleExamSubmitOrTimeUp(answers, browserFlags, interfaceActualStartTime, 'submit')}
         onTimeUp={(answers, browserFlags, interfaceActualStartTime) => handleExamSubmitOrTimeUp(answers, browserFlags, interfaceActualStartTime, 'timeup')}
@@ -792,3 +776,4 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
     </div>
   );
 }
+
