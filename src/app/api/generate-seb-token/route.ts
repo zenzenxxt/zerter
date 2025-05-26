@@ -5,6 +5,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 // Simplified local helper for safe error message extraction for server-side logging
 function getLocalSafeServerErrorMessage(e: any, defaultMessage = "An unknown server error occurred."): string {
   if (e && typeof e === 'object') {
+    if (e.name === 'AbortError') {
+      return "The request timed out. Please check your connection and try again.";
+    }
     if (typeof e.message === 'string' && e.message.trim() !== '') {
       return e.message;
     }
@@ -32,7 +35,6 @@ export async function POST(request: NextRequest) {
 
   try { // Outermost try-catch to ensure JSON response for any synchronous error
     
-    // Attempt to load 'jsonwebtoken' module inside the handler
     try {
       console.log(`${operationId} Attempting to load 'jsonwebtoken' module...`);
       localJwt = require('jsonwebtoken'); // Using require for Node.js runtime compatibility in API routes
