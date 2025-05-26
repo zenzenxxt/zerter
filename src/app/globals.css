@@ -116,7 +116,7 @@ main {
     --gradient-positive-start: 140 50% 50%;
     --gradient-positive-end: 150 60% 60%;
 
-    /* Dark theme sidebar variables (can be adjusted to match new design if a dark variant is needed) */
+    /* Dark theme sidebar variables (can be adjusted to new design if a dark variant is needed) */
     --sidebar-background: 220 15% 15%; 
     --sidebar-foreground: 220 10% 88%;
     --sidebar-primary: 211 100% 30%; /* Example: Darker blue for active items */
@@ -178,15 +178,20 @@ main {
 
 /* THIS IS THE NEW SIDEBAR BACKGROUND */
 .sidebar-bg {
-    background-image:
-        radial-gradient(at 0% 0%, hsla(240, 80%, 95%, 0.3) 0px, transparent 50%),
-        radial-gradient(at 100% 0%, hsla(300, 80%, 90%, 0.4) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, hsla(200, 90%, 85%, 0.5) 0px, transparent 50%),
-        radial-gradient(at 0% 100%, hsla(270, 85%, 92%, 0.4) 0px, transparent 50%);
-    backdrop-filter: blur(20px) saturate(150%);
-    -webkit-backdrop-filter: blur(20px) saturate(150%);
-    border-right: 1px solid rgba(255, 255, 255, 0.2);
+    background-color: hsla(204,0%,100%,1); /* From user's snippet */
+    background-image: /* From user's snippet */
+        radial-gradient(circle at 0% 0%, hsla(295.99999999999994,77%,74%,0.35) 3.1210986267166043%,transparent 40%),
+        radial-gradient(circle at 20% 0%, hsla(236.91176470588243,77%,74%,0.35) 3.1210986267166043%,transparent 40%),
+        radial-gradient(circle at 40% 0%, hsla(186.61764705882354,77%,74%,0.35) 3.1210986267166043%,transparent 40%),
+        radial-gradient(circle at 60% 0%, hsla(127.0588235294118,77%,74%,0.35) 3.1210986267166043%,transparent 40%),
+        radial-gradient(circle at 80% 0%, hsla(62.20588235294117,77%,74%,0.35) 3.1210986267166043%,transparent 40%),
+        radial-gradient(circle at 100% 0%, hsla(23.823529411764703,77%,74%,0.35) 3%,transparent 40%);
+    background-blend-mode: normal,normal,normal,normal,normal,normal; /* From user's snippet */
+    backdrop-filter: blur(20px) saturate(150%); /* Kept from original glassmorphism */
+    -webkit-backdrop-filter: blur(20px) saturate(150%); /* Kept for Safari */
+    border-right: 1px solid rgba(255, 255, 255, 0.2); /* Kept from original glassmorphism */
 }
+
 .sidebar-glass { /* Default sidebar glass effect, replaced by sidebar-bg for the new design */
    /* @apply bg-[hsl(var(--sidebar-background)/0.9)] dark:bg-[hsl(var(--sidebar-background)/0.85)] backdrop-blur-md border-r border-sidebar-border/60 dark:border-sidebar-border/40 shadow-xl; */
     @apply sidebar-bg; /* Use the new mesh gradient */
