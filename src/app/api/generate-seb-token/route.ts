@@ -56,14 +56,18 @@ export async function POST(request: NextRequest) {
     }
 
     const currentJwtSecretValue = process.env.NEXT_PUBLIC_JWT_SECRET;
-    // console.log(`${operationId} Value of process.env.NEXT_PUBLIC_JWT_SECRET at runtime: '${currentJwtSecretValue}' (Type: ${typeof currentJwtSecretValue})`); // Sensitive, commented out for general use
+    // For debugging: Log if the secret is present and its type, but NOT its value in production.
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`${operationId} JWT Secret check: Is present? ${!!currentJwtSecretValue}, Type: ${typeof currentJwtSecretValue}, Length: ${currentJwtSecretValue?.length || 0}`);
+    }
 
-    if (!currentJwtSecretValue || currentJwtSecretValue.trim() === '') {
-      const errorMsg = 'Server configuration error (JWT secret missing or empty for generation).';
-      console.error(`${operationId} CRITICAL: NEXT_PUBLIC_JWT_SECRET is not configured or is empty.`);
+
+    if (!currentJwtSecretValue || typeof currentJwtSecretValue !== 'string' || currentJwtSecretValue.trim() === '') {
+      const errorMsg = 'Server configuration error (JWT secret missing, empty, or not a string for generation). Ensure NEXT_PUBLIC_JWT_SECRET is set in the environment.';
+      console.error(`${operationId} CRITICAL: NEXT_PUBLIC_JWT_SECRET is not configured, empty, or not a string.`);
       return NextResponse.json({ error: errorMsg }, { status: 500 });
     }
-    console.log(`${operationId} NEXT_PUBLIC_JWT_SECRET is available (length: ${currentJwtSecretValue?.length || 0}).`);
+    // console.log(`${operationId} NEXT_PUBLIC_JWT_SECRET is available (length: ${currentJwtSecretValue?.length || 0}).`); // Avoid logging length in prod too if sensitive
 
     let body;
     try {
@@ -93,7 +97,7 @@ export async function POST(request: NextRequest) {
       token = localJwt.sign(payload, currentJwtSecretValue, { expiresIn: '1h' });
       console.log(`${operationId} JWT signed successfully. Token (first 20 chars): ${token ? token.substring(0,20) + "..." : "TOKEN_GENERATION_FAILED"}`);
     } catch (signError: any) {
-      const errorMsg = getLocalSafeServerErrorMessage(signError, "JWT signing process failed.");
+      const errorMsg = getLocalSafeServerErrorMessage(signError, "JWT signing process failed. Check JWT secret and payload.");
       console.error(`${operationId} Error during jwt.sign: ${errorMsg}`, signError);
       return NextResponse.json({ error: `Token generation failed internally: ${errorMsg}` }, { status: 500 });
     }
@@ -122,10 +126,10 @@ export async function POST(request: NextRequest) {
     console.error(`${operationId} CRITICAL UNHANDLED EXCEPTION in POST handler: Type: ${errorType}, IsErrorInstance: ${isErrorObject}, Message: ${errorMessageText}. Full Error:`, e);
     
     try {
-        return NextResponse.json({ error: "Critical server error during token generation. Please check server logs." }, { status: 500 });
+        return NextResponse.json({ error: `Critical server error during token generation. Please check server logs for operation ID: ${operationId}. Message: ${String(errorMessageText)}` }, { status: 500 });
     } catch (responseError: any) {
         console.error(`${operationId} FAILED TO SEND JSON RESPONSE even from outer catch:`, responseError.message, responseError);
-        return new Response(JSON.stringify({ error: "Critical server error and failed to send standardized JSON response." }), {
+        return new Response(JSON.stringify({ error: `Critical server error (operation ID: ${operationId}) and failed to send standardized JSON response.` }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' },
         });
