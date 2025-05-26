@@ -1,0 +1,316 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  /* Updated default background and foreground for the new light theme */
+  background-color: hsl(var(--background)); /* Uses HSL var for #F0F4F8 */
+  color: hsl(var(--foreground)); /* Uses HSL var for #1E293B */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+main {
+  flex-grow: 1;
+}
+
+@layer base {
+  :root {
+    /* Light Theme (NEW Defaults) */
+    --background: 210 29% 96%; /* #F0F4F8 */
+    --foreground: 215 30% 35%; /* #1E293B */
+
+    /* Cards in new design are primarily white with special shadows */
+    --card: 0 0% 100%; /* Card background - white for card-3d */
+    --card-foreground: 215 30% 25%; /* Text on cards, slightly darker than main foreground for contrast on white */
+
+    --popover: 0 0% 100%; /* Popover background - white */
+    --popover-foreground: 215 30% 25%;
+
+    /* Primary Blue Accent (remains from previous theme, used for primary actions) */
+    --primary: 211 100% 50%; /* Blue #007BFF */
+    --primary-foreground: 0 0% 100%; /* White text on primary blue elements */
+    
+    /* Secondary elements (can be adjusted if new design implies different secondary) */
+    --secondary: 220 15% 93.5%; /* Light grey #E5E5E5 for backgrounds and subtle contrast */
+    --secondary-foreground: 220 15% 30%; /* Text on secondary elements */
+
+    /* Muted elements */
+    --muted: 220 15% 96.5%; /* Lighter grey for muted backgrounds/borders */
+    --muted-foreground: 210 10% 50%; /* Softer muted text, adjusted for new foreground */
+
+    /* General Accent (lighter blue for harmony or other accent needs) */
+    --accent: 211 100% 60%; /* Lighter blue */
+    --accent-foreground: 0 0% 100%; /* White text on accent elements */
+
+    --destructive: 0 70% 55%; /* A clear red */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 15% 88%; /* Subtle borders - light grey, adjusted */
+    --input: 210 15% 93%; /* Input field background, adjusted */
+    --ring: 211 100% 50%; /* Focus ring - primary blue */
+    
+    --radius: 0.75rem; /* Softer, more rounded corners (12px) */
+
+    /* Gradient Button Colors (Blue Theme) */
+    --gradient-primary-start: 211 100% 50%;
+    --gradient-primary-end: 211 90% 58%; 
+    --gradient-destructive-start: 0 70% 55%; /* Original red for destructive */
+    --gradient-destructive-end: 0 80% 65%;
+    --gradient-positive-start: 140 60% 45%;
+    --gradient-positive-end: 150 70% 55%;
+
+    /* Sidebar specific theme variables - Blue Theme (can be overridden by new sidebar styles) */
+    --sidebar-background: 0 0% 98%; 
+    --sidebar-foreground: 220 15% 35%; 
+    --sidebar-primary: 211 100% 50%; 
+    --sidebar-primary-foreground: 0 0% 100%; 
+    --sidebar-accent: 211 100% 95%; 
+    --sidebar-accent-foreground: 211 100% 30%; 
+    --sidebar-border: 220 15% 88%; 
+    --sidebar-ring: 211 100% 50%; 
+    --sidebar-group-text: 220 10% 55%; 
+  }
+
+  .dark {
+    /* Dark theme remains as is, but ensure body bg/text defaults to light */
+    --background: 220 15% 12%; 
+    --foreground: 220 10% 92%; 
+
+    --card: 220 15% 18%; 
+    --card-foreground: 220 10% 92%;
+
+    --popover: 220 15% 15%; 
+    --popover-foreground: 220 10% 92%;
+
+    --primary: 211 100% 60%; 
+    --primary-foreground: 0 0% 100%; 
+    
+    --secondary: 220 15% 25%; 
+    --secondary-foreground: 220 10% 85%;
+
+    --muted: 220 15% 22%;
+    --muted-foreground: 220 10% 60%;
+
+    --accent: 211 100% 65%; 
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 65% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 30%; 
+    --input: 220 15% 17%;
+    --ring: 211 100% 65%; 
+    
+    --gradient-primary-start: 211 100% 60%;
+    --gradient-primary-end: 211 90% 68%;
+    --gradient-destructive-start: 0 65% 60%;
+    --gradient-destructive-end: 0 75% 70%;
+    --gradient-positive-start: 140 50% 50%;
+    --gradient-positive-end: 150 60% 60%;
+
+    --sidebar-background: 220 15% 15%; 
+    --sidebar-foreground: 220 10% 88%;
+    --sidebar-primary: 211 100% 60%; 
+    --sidebar-primary-foreground: 0 0% 100%; 
+    --sidebar-accent: 211 100% 25%; 
+    --sidebar-accent-foreground: 211 100% 85%; 
+    --sidebar-border: 220 15% 28%;
+    --sidebar-ring: 211 100% 70%;
+    --sidebar-group-text: 220 10% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+}
+
+/* Modern Card Style - Refined for light theme, adaptive for dark */
+/* The .modern-card class is kept for existing components if not overridden by .card-3d */
+.modern-card {
+  @apply bg-card text-card-foreground rounded-lg border border-border/60 shadow-lg transition-shadow hover:shadow-xl dark:border-border/40;
+}
+
+/* Primary Button Style (Solid Primary Color) - Blue Theme */
+.btn-primary-solid {
+  @apply bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring shadow-md hover:shadow-lg transition-all duration-200 ease-in-out;
+}
+
+/* Gradient Button Style - Blue Theme */
+.btn-gradient {
+  @apply text-primary-foreground font-semibold bg-gradient-to-r from-[hsl(var(--gradient-primary-start))] to-[hsl(var(--gradient-primary-end))] hover:from-[hsl(var(--gradient-primary-start),0.9)] hover:to-[hsl(var(--gradient-primary-end),0.9)] focus-visible:ring-ring shadow-md hover:shadow-lg transition-all duration-300 ease-in-out transform hover:-translate-y-0.5 active:translate-y-0;
+}
+.btn-gradient-destructive {
+  @apply text-white font-semibold bg-gradient-to-r from-[hsl(var(--gradient-destructive-start))] to-[hsl(var(--gradient-destructive-end))] hover:from-[hsl(var(--gradient-destructive-start),0.9)] hover:to-[hsl(var(--gradient-destructive-end),0.9)] focus-visible:ring-ring shadow-md hover:shadow-lg transition-all duration-300 ease-in-out transform hover:-translate-y-0.5 active:translate-y-0;
+}
+.btn-gradient-positive {
+   @apply text-white font-semibold bg-gradient-to-r from-[hsl(var(--gradient-positive-start))] to-[hsl(var(--gradient-positive-end))] hover:from-[hsl(var(--gradient-positive-start),0.9)] hover:to-[hsl(var(--gradient-positive-end),0.9)] focus-visible:ring-ring shadow-md hover:shadow-lg transition-all duration-300 ease-in-out transform hover:-translate-y-0.5 active:translate-y-0;
+}
+.btn-outline-subtle {
+  @apply border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:border-gray-400 dark:hover:border-gray-500;
+}
+
+/* Sidebar specific styling for active items and hover - Blue Theme */
+/* This might be overridden by new sidebar styles if they use different data attributes or classes */
+[data-sidebar="menu-button"][data-active="true"] {
+   @apply bg-sidebar-primary text-sidebar-primary-foreground shadow-md hover:bg-sidebar-primary/90;
+}
+[data-sidebar="menu-button"]:not([data-active="true"]):hover {
+  @apply bg-sidebar-accent text-sidebar-accent-foreground shadow-[0_0_15px_0_hsl(var(--primary)/0.5)]; /* Glowing hover effect */
+}
+
+/* Glassmorphism Card Style - Enhanced for modals on standard backgrounds */
+.glass-card {
+  /* Adjusted for light theme, less reliant on blur when background is solid */
+  @apply bg-card/95 dark:bg-card/85 border border-border/50 dark:border-border/30 shadow-2xl rounded-xl transition-all duration-300 hover:shadow-primary/20;
+}
+
+.sidebar-glass { /* Default sidebar glass effect, can be overridden by new sidebar-bg */
+   @apply bg-[hsl(var(--sidebar-background)/0.9)] dark:bg-[hsl(var(--sidebar-background)/0.85)] backdrop-blur-md border-r border-sidebar-border/60 dark:border-sidebar-border/40 shadow-xl;
+}
+
+/* NEW STYLES from user's provided HTML */
+.sidebar-bg {
+    background-image:
+        radial-gradient(at 0% 0%, hsla(240, 80%, 95%, 0.3) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, hsla(300, 80%, 90%, 0.4) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, hsla(200, 90%, 85%, 0.5) 0px, transparent 50%),
+        radial-gradient(at 0% 100%, hsla(270, 85%, 92%, 0.4) 0px, transparent 50%);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border-right: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.card-3d {
+    background-color: #FFFFFF; /* Uses direct color, not HSL var --card */
+    border-radius: 16px; /* Corresponds to approx rounded-xl */
+    box-shadow:
+        0px 4px 8px rgba(30, 41, 59, 0.05), /* shadow-md */
+        0px 10px 20px rgba(30, 41, 59, 0.1), /* shadow-lg */
+        inset 0px 1px 0px rgba(255, 255, 255, 0.6),
+        inset 0px -2px 4px rgba(30, 41, 59, 0.05);
+    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out; /* Adjusted transition duration */
+}
+.card-3d:hover {
+    transform: translateY(-2px); /* Reduced "lift" effect */
+    box-shadow:
+        0px 5px 10px rgba(30, 41, 59, 0.07), /* Slightly more pronounced shadow-md */
+        0px 12px 24px rgba(30, 41, 59, 0.12), /* Slightly more pronounced shadow-lg */
+        inset 0px 1px 0px rgba(255, 255, 255, 0.65),
+        inset 0px -2px 4px rgba(30, 41, 59, 0.06);
+}
+
+.sidebar-item {
+    transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    border-radius: 8px; /* Tailwind: rounded-lg */
+}
+.sidebar-item:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+    transform: translateX(3px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* shadow-md */
+}
+.sidebar-item.active {
+    background-color: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); /* shadow-lg */
+    font-weight: 600; /* Tailwind: font-semibold */
+}
+
+.progress-bar-light { /* Used if ShadCN progress cannot be styled this way */
+    background: linear-gradient(to right, #3B82F6 var(--progress-width, 0%), #E0E7FF var(--progress-width, 0%));
+}
+
+.logout-button-gradient-light {
+    background-image: linear-gradient(to right, #F87171, #EF4444);
+    color: white;
+}
+.logout-button-gradient-light:hover {
+    background-image: linear-gradient(to right, #EF4444, #DC2626);
+}
+/* END NEW STYLES */
+
+
+html:not(.dark) {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+}
+
+/* SEB Specific Styling for Light Theme - behaves more like a standard card */
+.bg-seb-gradient { /* Renamed, but represents standard background now */
+  @apply bg-background text-foreground;
+}
+
+/* Glass Pane style adjusted for Light Theme - behaves more like a standard card */
+/* Used for rules list in SEB entry, and header/footer/question card in exam interface */
+.glass-pane {
+  @apply bg-card/80 backdrop-blur-md text-card-foreground p-3 sm:p-0 rounded-lg border border-border/50 shadow-lg;
+  @apply dark:bg-slate-800/60 dark:backdrop-blur-md dark:border-slate-700/50 dark:text-slate-100;
+}
+    
+/* Input field enhancements for better visibility on different backgrounds */
+.modern-input {
+    @apply bg-background/70 dark:bg-slate-800/50 backdrop-blur-sm border-border/70 focus:border-primary focus:ring-primary/50 text-sm rounded-md;
+}
+
+/* General heading styles for consistency */
+h1, h2, h3, h4, h5, h6 {
+  @apply text-foreground font-semibold tracking-tight;
+}
+
+h1 { @apply text-3xl sm:text-4xl; }
+h2 { @apply text-2xl sm:text-3xl; }
+h3 { @apply text-xl sm:text-2xl; }
+h4 { @apply text-lg sm:text-xl; }
+
+/* Specific adjustments for lists within glass panes - general rules */
+.seb-rules-list li {
+  @apply text-card-foreground; /* Ensures dark text on light card-like background */
+}
+.seb-rules-list svg {
+  @apply text-primary; /* Primary color for icons on light card-like background */
+}
+
+/* Custom override for sm:p-6 if needed globally, but prefer utility class changes in JSX */
+@layer utilities {
+    @media (min-width: 640px) {
+        /* This rule was added per user request, but applying p-2 or sm:p-2 directly in JSX is often cleaner */
+        /* .sm\:p-6 {
+            padding: 0.5rem; 
+        } */
+    }
+}
+
+/* Thin scrollbar for scrollable areas */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) hsl(var(--background));
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+  border-radius: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border));
+  border-radius: 4px;
+  border: 2px solid hsl(var(--background));
+}
+.scrollbar-thumb-slate-300::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1; /* slate-300 */
+}
+.dark .scrollbar-thumb-slate-600::-webkit-scrollbar-thumb {
+    background-color: #475569; /* slate-600 */
+}

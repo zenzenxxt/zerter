@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Proctoring Module</title>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f4f8;
+            color: #1E293B;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .proctor-ui-container {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .proctor-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            margin-bottom: 5px;
+        }
+        .webcam-status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #e0e0e0; /* Grey initially */
+            margin-right: 8px;
+            border: 1px solid #757575;
+        }
+        .webcam-status-dot.active {
+            background-color: #4CAF50; /* Green when active */
+            border-color: #388E3C;
+        }
+        .proctor-title {
+            font-size: 0.9em;
+            font-weight: bold;
+            color: #333;
+        }
+        #webcamToggleBtn {
+            background: none;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 0.8em;
+            color: #555;
+        }
+        #webcamToggleBtn:hover {
+            background-color: #f0f0f0;
+        }
+        #webcamView {
+            width: 240px; /* Adjust as needed */
+            height: 180px; /* Adjust as needed */
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+            position: relative;
+        }
+        #webcamCanvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Or contain, depending on desired look */
+        }
+        .hidden {
+            display: none !important;
+        }
+        #statusMessages, #flagLogContainer {
+            margin-top: 200px; /* To avoid overlap with fixed proctor UI */
+            width: 90%;
+            max-width: 600px;
+            padding: 15px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        #statusMessages p, #flagLogContainer p {
+            margin: 5px 0;
+            font-size: 0.9em;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        #flagLogContainer h3 {
+            margin-top: 0;
+            font-size: 1.1em;
+            color: #d32f2f;
+        }
+        .flag-item {
+            color: #c62828;
+            font-weight: bold;
+        }
+        #studentIdInputContainer {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #e3f2fd;
+            border-radius: 4px;
+        }
+        #studentIdInputContainer label {
+            font-size: 0.8em;
+            margin-right: 5px;
+        }
+        #studentIdInput {
+            font-size: 0.8em;
+            padding: 3px;
+            border: 1px solid #90caf9;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="proctor-ui-container">
+        <div class="proctor-header">
+            <div style="display: flex; align-items: center;">
+                <div id="webcamStatusDot" class="webcam-status-dot"></div>
+                <span class="proctor-title">Webcam Proctoring</span>
+            </div>
+            <button id="webcamToggleBtn">Show Feed</button>
+        </div>
+        <div id="webcamView" class="hidden">
+            <video id="webcamVideo" autoplay playsinline style="display:none;"></video>
+            <canvas id="webcamCanvas"></canvas>
+        </div>
+    </div>
+
+    <div id="statusMessages">
+        <p id="initStatus">Initializing...</p>
+    </div>
+
+    <div id="flagLogContainer">
+        <h3>Flag Log:</h3>
+        <div id="flagLog">
+            <p>No flags yet.</p>
+        </div>
+    </div>
+    
+    <div id="studentIdInputContainer">
+        <label for="studentIdInput">Student ID:</label>
+        <input type="text" id="studentIdInput" value="student123">
+    </div>
+
+    <script type="module">
+        const { FaceLandmarker, FilesetResolver } = MediapipBuildVision; // Corrected variable name
+
+        const video = document.getElementById('webcamVideo');
+        const canvasElement = document.getElementById('webcamCanvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const webcamToggleBtn = document.getElementById('webcamToggleBtn');
+        const webcamViewDiv = document.getElementById('webcamView');
+        const webcamStatusDot = document.getElementById('webcamStatusDot');
+        const initStatusP = document.getElementById('initStatus');
+        const flagLogDiv = document.getElementById('flagLog');
+        const studentIdInput = document.getElementById('studentIdInput');
+
+        let faceLandmarker;
+        let runningMode = "VIDEO";
+        let lastVideoTime = -1;
+        let webcamRunning = false;
+        let noFaceTimeoutId = null;
+        let lastFaceDetectedTime = 0;
+
+        const DESIRED_FPS = 10;
+        const NO_FACE_TIMEOUT_DURATION = 3000; // 3 seconds
+        const YAW_THRESHOLD = 0.4; // Radians, adjust as needed (approx 23 degrees)
+
+        const flagCooldowns = {
+            NO_FACE: 5000,
+            MULTIPLE_FACES: 5000,
+            LOOKING_AWAY: 3000,
+        };
+        const lastFlagTimestamps = {
+            NO_FACE: 0,
+            MULTIPLE_FACES: 0,
+            LOOKING_AWAY: 0,
+        };
+
+        function updateStatus(message) {
+            initStatusP.textContent = message;
+            console.log("Status:", message);
+        }
+
+        function logFlag(type, details = '') {
+            const studentId = studentIdInput.value || "unknown_student";
+            const now = Date.now();
+            if (now - lastFlagTimestamps[type] > flagCooldowns[type]) {
+                lastFlagTimestamps[type] = now;
+                const flagData = { studentId, timestamp: now, flag: type, details };
+                
+                console.log("FLAG:", JSON.stringify(flagData));
+                
+                const p = document.createElement('p');
+                p.className = 'flag-item';
+                p.textContent = `${new Date(now).toLocaleTimeString()}: ${type} - ${details || 'No additional details'}`;
+                if (flagLogDiv.firstChild && flagLogDiv.firstChild.textContent === "No flags yet.") {
+                    flagLogDiv.innerHTML = ''; // Clear "No flags yet"
+                }
+                flagLogDiv.prepend(p); // Add new flag to the top
+            }
+        }
+
+        async function createFaceLandmarker() {
+            updateStatus("Loading MediaPipe Face Landmarker model...");
+            try {
+                const filesetResolver = await FilesetResolver.forVisionTasks(
+                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+                );
+                faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+                    baseOptions: {
+                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
+                        delegate: "GPU"
+                    },
+                    outputFaceBlendshapes: true,
+                    runningMode: runningMode,
+                    numFaces: 2 // Detect up to 2 faces for MULTIPLE_FACES detection
+                });
+                updateStatus("Face Landmarker model loaded. Ready for webcam.");
+                enableCam();
+            } catch (error) {
+                updateStatus(`Error loading model: ${error.message || error}`);
+                console.error("Error loading model:", error);
+            }
+        }
+        createFaceLandmarker();
+
+        function enableCam() {
+            if (!faceLandmarker) {
+                updateStatus("FaceLandmarker is not initialized yet.");
+                return;
+            }
+            if (webcamRunning) {
+                updateStatus("Webcam already running. Stopping and restarting.");
+                webcamRunning = false;
+                // No need to directly stop stream here, predictWebcam loop will handle it.
+            }
+            
+            updateStatus("Requesting webcam access...");
+            navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } })
+                .then((stream) => {
+                    video.srcObject = stream;
+                    video.addEventListener("loadeddata", () => {
+                        webcamRunning = true;
+                        webcamStatusDot.classList.add('active');
+                        updateStatus("Webcam active. Starting predictions.");
+                        lastFaceDetectedTime = Date.now(); // Initialize
+                        predictWebcam();
+                    });
+                })
+                .catch((err) => {
+                    updateStatus(`Error accessing webcam: ${err.name} - ${err.message}`);
+                    console.error("getUserMedia error:", err);
+                    webcamStatusDot.classList.remove('active');
+                });
+        }
+
+        async function predictWebcam() {
+            if (!webcamRunning) return;
+
+            const startTimeMs = performance.now();
+            if (video.currentTime !== lastVideoTime) {
+                lastVideoTime = video.currentTime;
+                const results = faceLandmarker.detectForVideo(video, startTimeMs);
+
+                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                if (webcamViewDiv.style.display !== 'none' && !webcamViewDiv.classList.contains('hidden')) {
+                    canvasCtx.save();
+                    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                    // Ensure video is scaled to fit canvas if aspect ratios differ
+                    const videoAspectRatio = video.videoWidth / video.videoHeight;
+                    const canvasAspectRatio = canvasElement.width / canvasElement.height;
+                    let drawWidth, drawHeight, offsetX, offsetY;
+
+                    if (videoAspectRatio > canvasAspectRatio) { // Video is wider
+                        drawWidth = canvasElement.width;
+                        drawHeight = canvasElement.width / videoAspectRatio;
+                        offsetX = 0;
+                        offsetY = (canvasElement.height - drawHeight) / 2;
+                    } else { // Video is taller or same aspect ratio
+                        drawHeight = canvasElement.height;
+                        drawWidth = canvasElement.height * videoAspectRatio;
+                        offsetY = 0;
+                        offsetX = (canvasElement.width - drawWidth) / 2;
+                    }
+                    canvasCtx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
+
+                    // Basic drawing of landmarks for visualization (optional)
+                    if (results.faceLandmarks) {
+                        for (const landmarks of results.faceLandmarks) {
+                            // Example: Draw nose tip (landmark 1)
+                            const noseTip = landmarks[1];
+                            if (noseTip) {
+                                canvasCtx.beginPath();
+                                canvasCtx.arc(noseTip.x * drawWidth + offsetX, noseTip.y * drawHeight + offsetY, 3, 0, 2 * Math.PI);
+                                canvasCtx.fillStyle = 'red';
+                                canvasCtx.fill();
+                            }
+                        }
+                    }
+                    canvasCtx.restore();
+                }
+                
+                processResults(results);
+            }
+            
+            setTimeout(predictWebcam, 1000 / DESIRED_FPS);
+        }
+
+        function processResults(results) {
+            const now = Date.now();
+
+            // NO_FACE detection
+            if (!results.faceLandmarks || results.faceLandmarks.length === 0) {
+                updateStatus("No face detected...");
+                if (noFaceTimeoutId === null) { // Start timer only if not already started
+                    if (now - lastFaceDetectedTime > NO_FACE_TIMEOUT_DURATION) {
+                         // Check immediately if already over threshold when timer starts
+                        logFlag('NO_FACE', `No face detected for over ${NO_FACE_TIMEOUT_DURATION/1000}s`);
+                        // Reset lastFaceDetectedTime to prevent immediate re-triggering on next frame
+                        // but only if the flag was just logged to ensure cooldown logic works.
+                        // This is handled by flagCooldowns.
+                    }
+                    // Start a conceptual timer. The actual check is continuous.
+                    // The `lastFaceDetectedTime` handles the "for over 3 seconds" part.
+                }
+                 if (now - lastFaceDetectedTime > NO_FACE_TIMEOUT_DURATION) {
+                    logFlag('NO_FACE', `No face detected for over ${NO_FACE_TIMEOUT_DURATION/1000}s`);
+                }
+            } else {
+                updateStatus(`Face(s) detected: ${results.faceLandmarks.length}`);
+                lastFaceDetectedTime = now;
+                if (noFaceTimeoutId !== null) {
+                    clearTimeout(noFaceTimeoutId);
+                    noFaceTimeoutId = null;
+                }
+
+                // MULTIPLE_FACES detection
+                if (results.faceLandmarks.length > 1) {
+                    logFlag('MULTIPLE_FACES', `Detected ${results.faceLandmarks.length} faces.`);
+                } else {
+                    // LOOKING_AWAY detection (only if single face)
+                    if (results.faceBlendshapes && results.faceBlendshapes.length > 0 && results.faceBlendshapes[0].categories) {
+                        const headPoseCategory = results.faceBlendshapes[0].categories.find(c => c.categoryName === 'headPose');
+                        if (headPoseCategory) {
+                            // Assuming yaw is the score for headPose as per typical MediaPipe output for this
+                            // This interpretation might need adjustment based on exact structure of headPoseCategory
+                            // It seems `score` for `headPose` blendshapes contains yaw, pitch, roll values.
+                            // We need to find which index corresponds to YAW.
+                            // For simplicity, let's assume the score directly provided is proportional or directly yaw.
+                            // A more robust way is to check the blendshape names if available or use more specific head pose model.
+                            // The new FaceLandmarker output for `faceBlendshapes` is an array of `Blendshape` objects,
+                            // each having `categoryName` and `score`. `headPose`'s score is likely the yaw.
+                            // Let's assume headPoseCategory.score IS yaw for now.
+                            // If MediaPipe headPose gives separate yaw, pitch, roll values, you'd access yaw specifically.
+                            // For this example, we'll take the primary 'score' from the 'headPose' category.
+                            // This is often an array [roll, pitch, yaw] or similar, or just a primary value.
+                            // The documentation shows that for `headPose`, the `score` field contains the value for that pose dimension.
+                            // For the 'headPose' category, there are usually three distinct blendshapes for roll, pitch, yaw.
+                            // Let's assume for now that if the category is `headPose`, `score` is a singular dominant pose value.
+                            // However, the new API returns an array of Blendshape objects in faceBlendshapes[0].categories.
+                            // We need to find the one *named* "yaw" or similar if it's structured that way,
+                            // or use the `headPose` values from the landmarker's direct output if it provides them separately.
+                            // The new `FaceLandmarkerResult` type definition shows `faceBlendshapes` as an array of `Array<Category>>`.
+                            // `Category` has `categoryName`, `displayName`, `score`, `index`.
+                            // If `categoryName` is "headPose", we'd need more info on how yaw is encoded in its `score` or other properties.
+                            
+                            // Re-checking MediaPipe documentation for FaceLandmarker's outputFaceBlendshapes:
+                            // It provides categories like "mouthSmileLeft", "eyeLookUpLeft", etc.
+                            // And also "headPitch", "headYaw", "headRoll".
+                            // So we should look for "headYaw".
+
+                            const yawBlendshape = results.faceBlendshapes[0].categories.find(c => c.categoryName === 'headYaw');
+                            if (yawBlendshape) {
+                                const yawValue = yawBlendshape.score; // Score from 0 to 1, representing intensity. Mid-point (0.5) is neutral.
+                                // Convert score (0 to 1) to an angle-like representation or use a threshold.
+                                // For simplicity, let's say < 0.3 or > 0.7 is looking away.
+                                // A score of 0.5 is typically straight ahead.
+                                // Values further from 0.5 indicate more turn.
+                                const YAW_SCORE_THRESHOLD_DEVIATION = 0.25; // How much deviation from 0.5 (neutral)
+                                if (Math.abs(yawValue - 0.5) > YAW_SCORE_THRESHOLD_DEVIATION) {
+                                   logFlag('LOOKING_AWAY', `Head yaw score: ${yawValue.toFixed(2)} (0.5 is neutral)`);
+                                }
+                            } else {
+                                // Fallback: try using nose and eye landmarks (less reliable than direct yaw)
+                                const landmarks = results.faceLandmarks[0];
+                                const noseTip = landmarks[1]; // Landmark 1 is nose tip
+                                const leftEyeInner = landmarks[133];
+                                const rightEyeInner = landmarks[362];
+                                
+                                if (noseTip && leftEyeInner && rightEyeInner) {
+                                    const eyeCenterlineX = (leftEyeInner.x + rightEyeInner.x) / 2;
+                                    const eyeSpan = Math.abs(rightEyeInner.x - leftEyeInner.x);
+                                    const noseDeviation = (noseTip.x - eyeCenterlineX) / eyeSpan; // Normalized deviation
+                                    
+                                    const NOSE_DEVIATION_THRESHOLD = 0.35; // e.g., 35% deviation from eye centerline
+                                    if (Math.abs(noseDeviation) > NOSE_DEVIATION_THRESHOLD) {
+                                        logFlag('LOOKING_AWAY', `Nose deviation: ${noseDeviation.toFixed(2)}`);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        webcamToggleBtn.addEventListener('click', () => {
+            const isHidden = webcamViewDiv.classList.toggle('hidden');
+            webcamToggleBtn.textContent = isHidden ? 'Show Feed' : 'Hide Feed';
+            if (!isHidden && !webcamRunning) {
+                enableCam(); // Try to start if not running and user wants to show
+            }
+        });
+
+        // Initial call to create landmarker and potentially start cam
+        // createFaceLandmarker(); // Already called above
+    </script>
+</body>
+</html>
