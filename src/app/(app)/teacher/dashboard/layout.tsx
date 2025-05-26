@@ -132,7 +132,7 @@ export default function TeacherDashboardLayout({
           </div>
         </aside>
         {/* Main Content: takes remaining width, scrolls its own content vertically */}
-        <main className="flex-1 p-4 bg-slate-50 overflow-y-auto">
+        <main className="flex-1 p-8 lg:p-12 bg-slate-50 overflow-y-auto">
           {showFullHeader && (
             <header className={cn(
                 "flex items-center mb-12", 
@@ -171,6 +171,7 @@ export default function TeacherDashboardLayout({
               </div>
             </header>
           )}
+           {/* If header is not shown, ensure content doesn't have extra top padding from the layout itself */}
           <div className={cn(!showFullHeader && "pt-0")}>
             {children}
           </div>
