@@ -3,14 +3,14 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { LayoutDashboard, Edit3, History, Settings, UserCircle, LogOut, ChevronDown, AlertTriangle, CameraOff } from 'lucide-react'; // Added CameraOff
+import { LayoutDashboard, Edit3, History, Settings, UserCircle, LogOut, ChevronDown, AlertTriangle, CameraOff } from 'lucide-react';
 import React, { ReactNode, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import Image from 'next/image';
-import logoAssetDark from '../../../../../logo.png'; 
+import logoAssetDark from '../../../../../logo.png';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 
@@ -90,8 +90,9 @@ export default function StudentDashboardLayout({
 
   return (
     <div className="relative flex size-full min-h-screen flex-col group/design-root overflow-x-hidden">
-      <div className="flex h-full grow flex-row">
-        <aside className="w-72 sidebar-bg p-6 flex flex-col justify-between min-h-screen shrink-0">
+      {/* This div is the direct parent of aside and main, ensuring it manages height correctly */}
+      <div className="flex flex-row flex-1 overflow-hidden"> {/* MODIFIED: flex-1 and overflow-hidden */}
+        <aside className="w-72 sidebar-bg p-6 flex flex-col justify-between h-full shrink-0"> {/* MODIFIED: min-h-screen to h-full */}
           <div>
             <div className="flex items-center gap-3 mb-10">
               <Link href="/" className="flex items-center gap-2">
@@ -127,16 +128,16 @@ export default function StudentDashboardLayout({
             </Button>
           </div>
         </aside>
-        <main className="flex-1 p-4 bg-slate-50 overflow-y-auto"> {/* Changed p-8 lg:p-12 to p-4 */}
+        <main className="flex-1 p-4 bg-slate-50 overflow-y-auto">
           {showFullHeader && (
             <header className={cn(
-                "flex items-center mb-12", // Reduced mb-12 if elements below are too far
+                "flex items-center mb-12",
                 showFullHeader ? "justify-between" : "justify-end"
               )}>
               {showFullHeader && (
                 <div>
-                  <h2 className="text-slate-800 tracking-tight text-3xl font-bold">Welcome, {user.name || 'Student'}!</h2> {/* text-4xl to text-3xl */}
-                  <p className="text-slate-500 text-base mt-1">Your secure online proctoring dashboard.</p> {/* text-lg to text-base, mt-2 to mt-1 */}
+                  <h2 className="text-slate-800 tracking-tight text-3xl font-bold">Welcome, {user.name || 'Student'}!</h2>
+                  <p className="text-slate-500 text-base mt-1">Your secure online proctoring dashboard.</p>
                 </div>
               )}
               <div className="flex items-center gap-4">
@@ -166,7 +167,7 @@ export default function StudentDashboardLayout({
               </div>
             </header>
           )}
-          <div className={cn(!showFullHeader && "pt-0")}> {/* Changed pt-8 to pt-0 */}
+          <div className={cn(!showFullHeader && "pt-0")}>
             {children}
           </div>
         </main>
@@ -174,5 +175,3 @@ export default function StudentDashboardLayout({
     </div>
   );
 }
-
-    
