@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Loader2, Clock, Bookmark, ChevronLeft, ChevronRight, LogOut, Move, Maximize2, CameraOff as CameraOffIcon, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Clock, Bookmark, ChevronLeft, ChevronRight, LogOut, Move, CameraOff as CameraOffIcon, Eye, EyeOff, Maximize2 } from 'lucide-react';
 import { useActivityMonitor } from '@/hooks/use-activity-monitor';
 import { addInputRestrictionListeners, disableContextMenu, attemptBlockShortcuts, disableCopyPaste } from '@/lib/seb-utils';
 import { useToast as useGlobalToast } from '@/hooks/use-toast';
@@ -13,7 +13,9 @@ import type { Question, Exam, FlaggedEvent, FlaggedEventType } from '@/types/sup
 import { cn } from "@/lib/utils";
 import logoAsset from '../../../logo.png';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision"; // Ensure VisionRunningMode is imported
+import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"; // Added this import
+import { Label } from "@/components/ui/label"; // Added this import for RadioGroup options
 
 interface ExamTakingInterfaceProps {
   examDetails: Exam;
@@ -35,15 +37,15 @@ interface ExamTakingInterfaceProps {
 
 const FLAG_COOLDOWN_MS = 5000;
 const NO_FACE_TIMEOUT_MS = 3000;
-const HEAD_YAW_THRESHOLD = 0.28; 
+const HEAD_YAW_THRESHOLD = 0.28;
 
 const INITIAL_PROCTOR_UI_WIDTH = 240;
 const INITIAL_PROCTOR_UI_HEIGHT = 180;
-const MIN_PROCTOR_UI_WIDTH = 120;
-const MIN_PROCTOR_UI_HEIGHT = 90;
-const MAX_PROCTOR_UI_WIDTH = 640;
-const MAX_PROCTOR_UI_HEIGHT = 480;
-const STATUS_BAR_HEIGHT = 32; 
+const MIN_PROCTOR_UI_WIDTH = 160;
+const MIN_PROCTOR_UI_HEIGHT = 120; // Maintained for proportion, but height isn't directly user-set
+const MAX_PROCTOR_UI_WIDTH = 480;
+const MAX_PROCTOR_UI_HEIGHT = 360; // Maintained for proportion
+const STATUS_BAR_HEIGHT = 32;
 
 export function ExamTakingInterface({
   examDetails,
@@ -104,7 +106,6 @@ export function ExamTakingInterface({
 
   useEffect(() => {
     if (examStarted && !actualExamStartTimeState && questions.length > 0 && !parentIsLoading) {
-      console.log("[ExamTakingInterface] Setting actual exam start time because examStarted, no prior startTime, questions exist, and not parent loading.");
       setActualExamStartTimeState(new Date().toISOString());
     }
   }, [examStarted, actualExamStartTimeState, questions, parentIsLoading]);
@@ -138,7 +139,7 @@ export function ExamTakingInterface({
   }, [currentQuestion, visitedQuestions]);
 
   const handleBrowserFlagEventInternal = useCallback((eventData: { type: FlaggedEventType; details?: string }) => {
-    if (isDemoMode) return;
+    if (isDemoMode || !shouldRenderProctoringUI) return; // Only flag if proctoring is active for this exam
     onBrowserFlagRef.current(eventData);
     toast({
       title: "Activity Alert (System)",
@@ -146,17 +147,17 @@ export function ExamTakingInterface({
       variant: "destructive",
       duration: 3000,
     });
-  }, [isDemoMode, toast]);
+  }, [isDemoMode, toast, shouldRenderProctoringUI]);
 
   useActivityMonitor({
     studentId: userIdForActivityMonitor,
     examId: examDetails.exam_id,
-    enabled: !isDemoMode && examStarted && (examDetails.enable_webcam_proctoring ?? false),
+    enabled: !isDemoMode && examStarted && shouldRenderProctoringUI,
     onFlagEvent: (event) => handleBrowserFlagEventInternal({ type: event.type, details: event.details }),
   });
 
   useEffect(() => {
-    if (isDemoMode || !examStarted || !(examDetails.enable_webcam_proctoring ?? false)) return;
+    if (isDemoMode || !examStarted || !shouldRenderProctoringUI) return;
     const cleanupInputRestriction = addInputRestrictionListeners(handleBrowserFlagEventInternal);
     const onContextMenu = (e: MouseEvent) => disableContextMenu(e, handleBrowserFlagEventInternal);
     const onKeyDown = (e: KeyboardEvent) => attemptBlockShortcuts(e, handleBrowserFlagEventInternal);
@@ -175,7 +176,7 @@ export function ExamTakingInterface({
       document.removeEventListener('copy', onCopy);
       document.removeEventListener('paste', onPaste);
     };
-  }, [isDemoMode, examStarted, examDetails.enable_webcam_proctoring, handleBrowserFlagEventInternal]);
+  }, [isDemoMode, examStarted, shouldRenderProctoringUI, handleBrowserFlagEventInternal]);
 
   const handleTimeUpCallback = useCallback(async () => {
     if (parentIsLoading || !examStarted || isSubmittingInternally || !actualExamStartTimeState) return;
@@ -202,15 +203,13 @@ export function ExamTakingInterface({
     if (!shouldRenderProctoringUI) return;
     const now = Date.now();
     if (lastFlagTimesRef.current[type] && (now - lastFlagTimesRef.current[type] < FLAG_COOLDOWN_MS)) {
-      console.log(`[ExamTakingInterface - MediaPipe Flag Throttled] Type: ${type}`);
       return;
     }
     lastFlagTimesRef.current[type] = now;
-    console.log(`[ExamTakingInterface - MediaPipe Flag Emitted] Type: ${type}, Details: ${details}`);
     onMediaPipeFlagRef.current({ type, details });
   }, [shouldRenderProctoringUI, onMediaPipeFlagRef]);
 
-  const predictWebcam = useCallback(() => {
+  const predictWebcam = useCallback(async () => {
     if (!faceLandmarkerRef.current || !videoRef.current || !canvasRef.current || !isWebcamInitialized) {
       if (faceLandmarkerRef.current && requestRef.current) requestAnimationFrame(predictWebcam);
       return;
@@ -224,8 +223,8 @@ export function ExamTakingInterface({
       return;
     }
     
-    if (canvas.width !== proctorUiSize.width) canvas.width = proctorUiSize.width;
-    if (canvas.height !== proctorUiSize.height) canvas.height = proctorUiSize.height;
+    canvas.width = proctorUiSize.width;
+    canvas.height = proctorUiSize.height;
 
     let results;
     try {
@@ -257,7 +256,7 @@ export function ExamTakingInterface({
     }
     
     const canvasCtx = canvas.getContext("2d");
-    if (canvasCtx) {
+    if (canvasCtx && video.videoWidth > 0 && video.videoHeight > 0) {
       canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
       try {
         canvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -274,7 +273,6 @@ export function ExamTakingInterface({
   useEffect(() => {
     const videoElement = videoRef.current;
     if (!examStarted || !shouldRenderProctoringUI || !videoElement) {
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
       const landmarkerToClose = faceLandmarkerRef.current; faceLandmarkerRef.current = null;
       if (landmarkerToClose && typeof landmarkerToClose.close === 'function') {
         const closePromise = landmarkerToClose.close();
@@ -297,65 +295,34 @@ export function ExamTakingInterface({
     let vision: FilesetResolver | null = null;
 
     const cleanupProctoring = () => {
-      console.log("[ExamTakingInterface] Cleaning up proctoring resources...");
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
-      
       const landmarkerInstanceToClose = faceLandmarkerRef.current;
-      faceLandmarkerRef.current = null; 
+      faceLandmarkerRef.current = null;
       if (landmarkerInstanceToClose && typeof landmarkerInstanceToClose.close === 'function') {
           const closeResult = landmarkerInstanceToClose.close();
           if (closeResult && typeof closeResult.then === 'function') {
-              closeResult
-                .then(() => console.log("[ExamTakingInterface] FaceLandmarker closed successfully."))
-                .catch((e:any) => {
-                    if (e?.message?.includes("INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")) {
-                        console.warn("[ExamTakingInterface] MediaPipe Info during close (ignored):", e.message);
-                    } else {
-                        console.error("[ExamTakingInterface] Error closing FaceLandmarker (cleanup):", e);
-                    }
-                });
-          } else {
-              console.warn("[ExamTakingInterface] FaceLandmarker.close() did not return a promise during cleanup.");
+              closeResult.catch((e:any) => {
+                  if (e?.message?.includes("INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")) {
+                      console.warn("[ExamTakingInterface] MediaPipe Info during close (ignored):", e.message);
+                  } else { console.error("[ExamTakingInterface] Error closing FaceLandmarker (cleanup):", e); }
+              });
           }
-      } else if (landmarkerInstanceToClose) {
-        console.warn("[ExamTakingInterface] landmarkerInstanceToClose.close was not a function during cleanup.");
       }
-
-      if (localStreamRef.current) {
-        console.log("[ExamTakingInterface] Stopping localStream tracks.");
-        localStreamRef.current.getTracks().forEach(track => track.stop());
-        localStreamRef.current = null;
-      }
-      if (videoElement && videoElement.srcObject) {
-        console.log("[ExamTakingInterface] Stopping videoElement srcObject tracks.");
-        (videoElement.srcObject as MediaStream).getTracks().forEach(track => track.stop());
-        videoElement.srcObject = null;
-      }
-      setIsWebcamInitialized(false); 
-      console.log("[ExamTakingInterface] Proctoring cleanup complete.");
+      if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(track => track.stop()); localStreamRef.current = null; }
+      if (videoElement && videoElement.srcObject) { (videoElement.srcObject as MediaStream).getTracks().forEach(track => track.stop()); videoElement.srcObject = null; }
+      setIsWebcamInitialized(false);
     };
 
     const setupWebcamAndFaceLandmarker = async () => {
-      console.log("[ExamTakingInterface] Setting up webcam and FaceLandmarker...");
       setIsWebcamInitialized(false); 
       setWebcamError(null);
-
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 320 }, height: { ideal: 240 } } });
         localStreamRef.current = stream;
-        if (videoElement) {
-          videoElement.srcObject = stream;
-        } else {
-          throw new Error("[ExamTakingInterface] Video element ref not found during setup.");
-        }
-        console.log("[ExamTakingInterface] User media stream obtained.");
+        if (videoElement) videoElement.srcObject = stream; else throw new Error("Video element ref not found.");
 
         videoElement.onloadedmetadata = async () => {
-          console.log("[ExamTakingInterface] Video metadata loaded.");
-          try {
-            await videoElement.play();
-            console.log("[ExamTakingInterface] videoElement.play() promise resolved. 'onplaying' handler will now init MediaPipe.");
-          } catch (playError: any) {
+          try { await videoElement.play(); } catch (playError: any) {
             console.error("[ExamTakingInterface] Video play() promise rejected:", playError.message, playError);
             setWebcamError(playError.message || "Failed to start video playback.");
             onMediaPipeFlagRef.current({ type: 'WEBCAM_UNAVAILABLE', details: `Video play error: ${playError.message}` });
@@ -364,70 +331,35 @@ export function ExamTakingInterface({
         };
         
         videoElement.onplaying = async () => {
-          console.log("[ExamTakingInterface] Video is now actively playing. Initializing MediaPipe.");
-          setIsWebcamInitialized(false); 
-          setWebcamError(null);
-
+          setIsWebcamInitialized(false); setWebcamError(null);
           try {
-            vision = await FilesetResolver.forVisionTasks(
-              "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
-            );
-            console.log("[ExamTakingInterface] FilesetResolver initialized for vision tasks.");
-            
+            vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
             const landmarker = await FaceLandmarker.createFromOptions(vision, {
-              baseOptions: {
-                modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
-                delegate: "CPU",
-              },
-              outputFaceBlendshapes: true,
-              runningMode: 'VIDEO', 
-              numFaces: 2,
+              baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`, delegate: "CPU" },
+              outputFaceBlendshapes: true, runningMode: 'VIDEO', numFaces: 2,
             });
-            faceLandmarkerRef.current = landmarker;
-            setIsWebcamInitialized(true); 
-            setWebcamError(null);
-            console.log("[ExamTakingInterface] FaceLandmarker initialized successfully (CPU delegate forced). Starting prediction loop.");
-            
+            faceLandmarkerRef.current = landmarker; setIsWebcamInitialized(true); setWebcamError(null);
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
             requestRef.current = requestAnimationFrame(predictWebcam);
-
           } catch (landmarkerError: any) {
             let actualErrorMessage = landmarkerError.message || "Failed to initialize MediaPipe FaceLandmarker.";
-             if (actualErrorMessage.includes("INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")) {
-                 console.warn("[ExamTakingInterface] MediaPipe INFO during init (attempting to proceed):", actualErrorMessage);
-                 // Potentially try to proceed if this is the only error, assuming CPU fallback is okay.
-                 // However, if createFromOptions promise *rejects*, it's safer to treat it as an error.
-                 // For now, if it rejects, it's an error.
-             }
-            console.error("[ExamTakingInterface] Error initializing FaceLandmarker:", actualErrorMessage, landmarkerError);
+            if (actualErrorMessage.includes("INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")) {
+                 console.warn("[ExamTakingInterface] MediaPipe INFO during init, but treating as error if promise rejected:", actualErrorMessage);
+            }
             setWebcamError(actualErrorMessage);
             onMediaPipeFlagRef.current({ type: 'WEBCAM_UNAVAILABLE', details: `MediaPipe init error: ${actualErrorMessage.substring(0,100)}` });
             setIsWebcamInitialized(false); 
           }
         };
-
       } catch (err: any) {
-        let flagType: FlaggedEventType = 'WEBCAM_UNAVAILABLE';
-        let actualErrorMessage = err.message || "Webcam is unavailable or access was denied.";
-
-        if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
-          flagType = 'WEBCAM_UNAVAILABLE';
-          actualErrorMessage = "No webcam detected.";
-        } else if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-          flagType = 'WEBCAM_PERMISSION_DENIED';
-          actualErrorMessage = "Webcam permission denied.";
-        }
-        console.error("[ExamTakingInterface] Error getting user media:", actualErrorMessage, err);
-        setWebcamError(actualErrorMessage);
-        onMediaPipeFlagRef.current({ type: flagType, details: actualErrorMessage });
-        setIsWebcamInitialized(false); 
+        let flagType: FlaggedEventType = 'WEBCAM_UNAVAILABLE'; let actualErrorMessage = err.message || "Webcam is unavailable or access was denied.";
+        if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") flagType = 'WEBCAM_UNAVAILABLE';
+        else if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") flagType = 'WEBCAM_PERMISSION_DENIED';
+        setWebcamError(actualErrorMessage); onMediaPipeFlagRef.current({ type: flagType, details: actualErrorMessage }); setIsWebcamInitialized(false); 
       }
     };
 
-    if (shouldRenderProctoringUI && videoElement) {
-      setupWebcamAndFaceLandmarker();
-    }
-    
+    if (shouldRenderProctoringUI && videoElement) setupWebcamAndFaceLandmarker();
     return cleanupProctoring;
   }, [examStarted, shouldRenderProctoringUI, onMediaPipeFlagRef, predictWebcam, examDetails.enable_webcam_proctoring]); 
 
@@ -437,11 +369,8 @@ export function ExamTakingInterface({
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = 'rgba(50,50,50,0.8)'; 
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = 'white';
-        ctx.textAlign = 'center';
-        ctx.font = '10px Arial';
+        ctx.fillStyle = 'rgba(50,50,50,0.8)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'white'; ctx.textAlign = 'center'; ctx.font = '10px Arial';
         const message = webcamError || 'Webcam off / Initializing...';
         const lines = []; const maxCharsPerLine = Math.floor(canvas.width / 6);
         for (let i = 0; i < message.length; i += maxCharsPerLine) lines.push(message.substring(i, i + maxCharsPerLine));
@@ -452,17 +381,13 @@ export function ExamTakingInterface({
 
   const handleProctorUiMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!proctoringUiRef.current || !e.target || !(e.target as HTMLElement).classList.contains('proctor-status-bar-drag-handle')) return;
-    setIsDraggingProctorUi(true);
-    const rect = proctoringUiRef.current.getBoundingClientRect();
-    dragStartOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    e.preventDefault();
+    setIsDraggingProctorUi(true); const rect = proctoringUiRef.current.getBoundingClientRect();
+    dragStartOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top }; e.preventDefault();
   };
 
   const handleProctorUiMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDraggingProctorUi || !proctoringUiRef.current) return;
-    e.preventDefault();
-    let newTop = e.clientY - dragStartOffset.current.y;
-    let newLeft = e.clientX - dragStartOffset.current.x;
+    if (!isDraggingProctorUi || !proctoringUiRef.current) return; e.preventDefault();
+    let newTop = e.clientY - dragStartOffset.current.y; let newLeft = e.clientX - dragStartOffset.current.x;
     const { offsetWidth, offsetHeight } = proctoringUiRef.current;
     newTop = Math.max(0, Math.min(newTop, window.innerHeight - offsetHeight));
     newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - offsetWidth));
@@ -473,15 +398,12 @@ export function ExamTakingInterface({
 
   useEffect(() => {
     if (isDraggingProctorUi) {
-      window.addEventListener('mousemove', handleProctorUiMouseMove);
-      window.addEventListener('mouseup', handleProctorUiMouseUp);
+      window.addEventListener('mousemove', handleProctorUiMouseMove); window.addEventListener('mouseup', handleProctorUiMouseUp);
     } else {
-      window.removeEventListener('mousemove', handleProctorUiMouseMove);
-      window.removeEventListener('mouseup', handleProctorUiMouseUp);
+      window.removeEventListener('mousemove', handleProctorUiMouseMove); window.removeEventListener('mouseup', handleProctorUiMouseUp);
     }
     return () => {
-      window.removeEventListener('mousemove', handleProctorUiMouseMove);
-      window.removeEventListener('mouseup', handleProctorUiMouseUp);
+      window.removeEventListener('mousemove', handleProctorUiMouseMove); window.removeEventListener('mouseup', handleProctorUiMouseUp);
     };
   }, [isDraggingProctorUi, handleProctorUiMouseMove, handleProctorUiMouseUp]);
 
@@ -503,15 +425,12 @@ export function ExamTakingInterface({
 
   useEffect(() => {
     if (isResizingProctorUi) {
-      window.addEventListener('mousemove', handleResizeMouseMove);
-      window.addEventListener('mouseup', handleResizeMouseUp);
+      window.addEventListener('mousemove', handleResizeMouseMove); window.addEventListener('mouseup', handleResizeMouseUp);
     } else {
-      window.removeEventListener('mousemove', handleResizeMouseMove);
-      window.removeEventListener('mouseup', handleResizeMouseUp);
+      window.removeEventListener('mousemove', handleResizeMouseMove); window.removeEventListener('mouseup', handleResizeMouseUp);
     }
     return () => {
-      window.removeEventListener('mousemove', handleResizeMouseMove);
-      window.removeEventListener('mouseup', handleResizeMouseUp);
+      window.removeEventListener('mousemove', handleResizeMouseMove); window.removeEventListener('mouseup', handleResizeMouseUp);
     };
   }, [isResizingProctorUi, handleResizeMouseMove, handleResizeMouseUp]);
 
@@ -565,14 +484,14 @@ export function ExamTakingInterface({
   if (parentIsLoading && !isSubmittingInternally) {
     return (
       <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center bg-background/80 backdrop-blur-md p-6 text-center text-foreground">
-          <Loader2 className="h-16 w-16 text-primary animate-spin mb-6 stroke-width-1.5" />
+          <Loader2 className="h-16 w-16 text-primary animate-spin mb-6 stroke-[1.5px]" />
           <h2 className="text-xl font-medium mb-2">Submitting Exam...</h2><p className="text-sm text-muted-foreground">Please wait.</p>
       </div>);
   }
   if (isSubmittingInternally && !parentIsLoading) {
      return (
       <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center bg-background/80 backdrop-blur-md p-6 text-center text-foreground">
-          <Loader2 className="h-16 w-16 text-primary animate-spin mb-6 stroke-width-1.5" />
+          <Loader2 className="h-16 w-16 text-primary animate-spin mb-6 stroke-[1.5px]" />
           <h2 className="text-xl font-medium mb-2">Processing Submission...</h2><p className="text-sm text-muted-foreground">Please wait.</p>
       </div>);
   }
@@ -592,7 +511,8 @@ export function ExamTakingInterface({
           }}
         >
           <div
-            className="proctor-status-bar-drag-handle p-1.5 flex items-center gap-2 border-b border-border/50 dark:border-slate-700/30 cursor-grab h-[${STATUS_BAR_HEIGHT}px]"
+            className="proctor-status-bar-drag-handle p-1.5 flex items-center gap-2 border-b border-border/50 dark:border-slate-700/30 cursor-grab"
+            style={{ height: `${STATUS_BAR_HEIGHT}px`}}
             onMouseDown={handleProctorUiMouseDown}
           >
             <div className={cn("ping", isWebcamInitialized && !webcamError ? "ping-green" : "ping-red")}></div>
@@ -602,7 +522,7 @@ export function ExamTakingInterface({
             <Move className="h-3.5 w-3.5 text-muted-foreground/70 ml-auto cursor-grab" />
           </div>
           <div className="relative flex-grow rounded-b-lg overflow-hidden">
-            <canvas ref={canvasRef} width={proctorUiSize.width} height={proctorUiSize.height} className="w-full h-full object-cover" />
+             <canvas ref={canvasRef} width={proctorUiSize.width} height={proctorUiSize.height} className="w-full h-full object-cover" />
             {(!isWebcamInitialized || webcamError) && (
               <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-slate-700/80 rounded-b-lg text-center text-xs text-slate-300 p-2">
                   <CameraOffIcon className="h-6 w-6 text-slate-400 mb-1" />
@@ -633,13 +553,13 @@ export function ExamTakingInterface({
 
       <div className="sticky top-20 h-14 px-4 sm:px-6 flex items-center justify-between border-b border-border bg-card shadow-sm shrink-0 z-40">
         <div className="flex items-center gap-2 text-foreground">
-          <Clock size={20} className="text-primary stroke-width-1.5" /><span className="font-medium text-sm">Time remaining:</span>
+          <Clock size={20} className="text-primary stroke-[1.5px]" /><span className="font-medium text-sm">Time remaining:</span>
           <span className="font-semibold text-md tabular-nums text-primary">{formatTime(timeLeftSeconds)}</span>
         </div>
         <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
             <AlertDialogTrigger asChild>
                  <Button variant="destructive" disabled={parentIsLoading || isSubmittingInternally} className="px-6 py-2 text-sm rounded-md font-medium shadow-md hover:shadow-lg transition-all btn-gradient-destructive">
-                    <LogOut className="mr-2 h-4 w-4 stroke-width-1.5"/>Submit Exam
+                    <LogOut className="mr-2 h-4 w-4 stroke-[1.5px]"/>Submit Exam
                 </Button>
             </AlertDialogTrigger>
             <AlertDialogContent className="glass-card border-border bg-card text-card-foreground z-[70]">
@@ -650,7 +570,7 @@ export function ExamTakingInterface({
                 </AlertDialogDescription></AlertDialogHeader>
                 <AlertDialogFooter><AlertDialogCancel className="btn-outline-subtle" disabled={isSubmittingInternally || parentIsLoading}>Cancel</AlertDialogCancel>
                 <AlertDialogAction onClick={confirmAndSubmitExam} className="btn-gradient-destructive" disabled={isSubmittingInternally || parentIsLoading}>
-                    {(isSubmittingInternally || parentIsLoading) && <Loader2 className="animate-spin mr-2 h-4 w-4 stroke-width-1.5" />}Yes, Submit Exam
+                    {(isSubmittingInternally || parentIsLoading) && <Loader2 className="animate-spin mr-2 h-4 w-4 stroke-[1.5px]" />}Yes, Submit Exam
                 </AlertDialogAction></AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
@@ -661,7 +581,7 @@ export function ExamTakingInterface({
           <div className="mb-4 flex justify-between items-center">
             <p className="text-lg sm:text-xl font-semibold text-primary">Question {currentQuestionIndex + 1} <span className="text-sm font-normal text-muted-foreground">of {totalQuestions}</span></p>
             <Button variant="ghost" size="icon" onClick={handleToggleMarkForReview} title={markedForReview[currentQuestion?.id || ''] ? "Unmark for Review" : "Mark for Review"} disabled={parentIsLoading || isSubmittingInternally} className="text-muted-foreground hover:text-yellow-500">
-                <Bookmark className={cn("h-5 w-5 stroke-width-1.5", markedForReview[currentQuestion?.id || ''] ? "fill-yellow-400 text-yellow-500" : "")} />
+                <Bookmark className={cn("h-5 w-5 stroke-[1.5px]", markedForReview[currentQuestion?.id || ''] ? "fill-yellow-400 text-yellow-500" : "")} />
             </Button>
           </div>
           <h2 className="text-xl sm:text-2xl font-medium text-foreground leading-relaxed">{currentQuestion?.text}</h2>
@@ -681,7 +601,7 @@ export function ExamTakingInterface({
                     (parentIsLoading || isSubmittingInternally) && "cursor-not-allowed opacity-70"
                   )}
                 >
-                  <RadioGroupItem value={option.id} id={`opt-${currentQuestion.id}-${option.id}`} className="h-5 w-5 border-muted-foreground text-primary focus:ring-primary disabled:opacity-50 shrink-0 stroke-width-1.5" disabled={parentIsLoading || isSubmittingInternally} />
+                  <RadioGroupItem value={option.id} id={`opt-${currentQuestion.id}-${option.id}`} className="h-5 w-5 border-muted-foreground text-primary focus:ring-primary disabled:opacity-50 shrink-0 stroke-[1.5px]" disabled={parentIsLoading || isSubmittingInternally} />
                   <span className="font-medium leading-snug">{option.text}</span>
                 </Label>
               ))}
@@ -692,7 +612,7 @@ export function ExamTakingInterface({
 
       <footer className="sticky bottom-0 h-20 px-4 sm:px-6 flex items-center justify-between border-t border-border bg-card shadow-sm shrink-0 z-40">
         <Button variant="outline" onClick={handlePreviousQuestion} disabled={currentQuestionIndex === 0 || !allowBacktracking || parentIsLoading || isSubmittingInternally} className="px-6 py-3 text-md rounded-lg shadow-sm btn-outline-subtle">
-          <ChevronLeft className="mr-2 h-5 w-5 stroke-width-1.5" /> Previous
+          <ChevronLeft className="mr-2 h-5 w-5 stroke-[1.5px]" /> Previous
         </Button>
         <div className="flex-1 mx-4 overflow-x-auto whitespace-nowrap scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent py-2">
           <div className="flex items-center justify-center gap-2 px-2">
@@ -710,15 +630,16 @@ export function ExamTakingInterface({
         </div>
         {isLastQuestion ? (
           <Button onClick={() => setShowSubmitConfirm(true)} disabled={parentIsLoading || isSubmittingInternally} className={cn("px-6 py-3 text-md rounded-lg font-medium shadow-sm btn-gradient-destructive")}>
-            <LogOut className="mr-2 h-5 w-5 stroke-width-1.5" /> Submit Exam
+            <LogOut className="mr-2 h-5 w-5 stroke-[1.5px]" /> Submit Exam
           </Button>
         ) : (
           <Button onClick={handleNextQuestion} disabled={currentQuestionIndex === totalQuestions - 1 || parentIsLoading || isSubmittingInternally} className={cn("px-6 py-3 text-md rounded-lg font-medium shadow-sm btn-primary-solid")}>
-            Next <ChevronRight className="ml-2 h-5 w-5 stroke-width-1.5" />
+            Next <ChevronRight className="ml-2 h-5 w-5 stroke-[1.5px]" />
           </Button>
         )}
       </footer>
     </div>
   );
 }
+
     
