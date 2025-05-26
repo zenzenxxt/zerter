@@ -25,7 +25,7 @@ function getLocalSafeServerErrorMessage(e: any, defaultMessage = "An unknown ser
 
 export async function POST(request: NextRequest) {
   const operationId = `[API GenerateSEBToken POST ${Date.now().toString().slice(-5)}]`;
-  console.log(`${operationId} Handler started.`);
+  console.log(`${operationId} Handler invoked.`); // Very first log
 
   let localJwt: any = null;
   let jwtModuleErrorMsg: string | null = null;
@@ -129,7 +129,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Critical server error during token generation. Please check server logs for operation ID: ${operationId}. Message: ${String(errorMessageText)}` }, { status: 500 });
     } catch (responseError: any) {
         console.error(`${operationId} FAILED TO SEND JSON RESPONSE even from outer catch:`, responseError.message, responseError);
-        return new Response(JSON.stringify({ error: `Critical server error (operation ID: ${operationId}) and failed to send standardized JSON response.` }), {
+        // Fallback to basic Response if NextResponse.json fails
+        const body = JSON.stringify({ error: `Critical server error (operation ID: ${operationId}) and failed to send standardized JSON response.` });
+        return new Response(body, {
             status: 500,
             headers: { 'Content-Type': 'application/json' },
         });
