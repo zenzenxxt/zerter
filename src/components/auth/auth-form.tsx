@@ -119,8 +119,8 @@ export function AuthForm() {
   if (authContextLoading && pathname === AUTH_ROUTE && user === null) {
     console.log('[AuthForm] AuthContext initial loading state on /auth. Showing AuthForm page loader.');
     return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-10rem)] py-12"> {/* Removed specific bg from wrapper */}
-        <Card className="p-6 glass-card text-center">
+      <div className="flex items-center justify-center min-h-[calc(100vh-10rem)] py-12">
+        <Card className="p-6 card-3d text-center">
             <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary mb-3"/>
             <p className="text-md font-medium text-foreground">Verifying session...</p>
         </Card>
@@ -131,8 +131,8 @@ export function AuthForm() {
   if (!authContextLoading && user && pathname === AUTH_ROUTE) {
     console.log(`[AuthForm] User is authenticated (${user.email}), AuthContext loaded, but still on /auth. AuthContext should be redirecting. Displaying "Finalizing..." message.`);
     return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] py-12"> {/* Removed specific bg from wrapper */}
-        <Card className="p-8 glass-card text-center shadow-xl">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] py-12">
+        <Card className="p-8 card-3d text-center shadow-xl">
           <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary mb-4"/>
           <p className="text-lg font-semibold text-foreground">Finalizing session for {user.email}...</p>
           <p className="mt-1 text-sm text-muted-foreground">Redirecting to dashboard.</p>
@@ -160,8 +160,8 @@ export function AuthForm() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-10rem)] py-12 px-4"> {/* Removed specific bg from wrapper */}
-      <Card className="w-full max-w-md modern-card shadow-xl border-border/50">
+    <div className="flex items-center justify-center min-h-[calc(100vh-10rem)] py-12 px-4">
+      <Card className="w-full max-w-md card-3d"> {/* Changed from modern-card */}
         <Tabs value={action} onValueChange={handleTabChange} className="w-full">
            <CardHeader className="p-4 pb-2 sm:p-6 sm:pb-3">
             <TabsList className="grid w-full grid-cols-2 bg-muted/70 dark:bg-muted/40 p-1 rounded-md backdrop-blur-sm">
@@ -195,8 +195,8 @@ export function AuthForm() {
             )}
             <TabsContent value="login">
               <CardHeader className="text-center pt-4 sm:pt-6 pb-3">
-                <CardTitle className="text-2xl font-semibold text-foreground">Welcome Back!</CardTitle>
-                <CardDescription className="text-muted-foreground pt-1 text-sm">Access your ZenTest account.</CardDescription>
+                <CardTitle className="text-xl sm:text-2xl font-semibold text-foreground">Welcome Back!</CardTitle>
+                <CardDescription className="text-muted-foreground pt-1 text-sm">Access your ProctorPrep account.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 p-4 sm:p-6 pt-2">
                 <div className="space-y-1.5">
@@ -243,8 +243,8 @@ export function AuthForm() {
 
             <TabsContent value="register">
               <CardHeader className="text-center pt-4 sm:pt-6 pb-3">
-                <CardTitle className="text-2xl font-semibold text-foreground">Create Account</CardTitle>
-                <CardDescription className="text-muted-foreground pt-1 text-sm">Join ZenTest. It&apos;s quick and easy.</CardDescription>
+                <CardTitle className="text-xl sm:text-2xl font-semibold text-foreground">Create Account</CardTitle>
+                <CardDescription className="text-muted-foreground pt-1 text-sm">Join ProctorPrep. It&apos;s quick and easy.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3.5 p-4 sm:p-6 pt-2">
                 <div className="space-y-1.5">
@@ -306,7 +306,7 @@ export function AuthForm() {
                   <div className="relative">
                      <Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
                     <Select value={role || ''} onValueChange={(value) => setRole(value as CustomUser['role'])} required>
-                      <SelectTrigger id="register-role" className="pl-10 modern-input"> {/* Added modern-input */}
+                      <SelectTrigger id="register-role" className="pl-10 modern-input">
                         <SelectValue placeholder="Select a role" />
                       </SelectTrigger>
                       <SelectContent className="bg-popover border-border shadow-lg rounded-md">

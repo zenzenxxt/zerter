@@ -1,10 +1,13 @@
+
 import { Suspense } from 'react';
 import { AppHeader } from '@/components/shared/header';
 import { AppFooter } from '@/components/shared/footer';
 import { AuthForm } from '@/components/auth/auth-form';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '@/components/ui/skeleton'; // Keep Skeleton if AuthForm uses it internally or for its own fallback
 
 function AuthFormFallback() {
+  // This fallback might not be strictly necessary if AuthForm itself handles its loading,
+  // but it's good practice for a Suspense boundary on a page level.
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-10rem)] py-12">
       <div className="w-full max-w-md p-8 space-y-6 bg-card rounded-lg shadow-xl">
@@ -25,6 +28,10 @@ export default function AuthenticationPage() {
     <div className="flex flex-col min-h-screen">
       <AppHeader />
       <main className="flex-grow container px-4 md:px-6">
+        {/* AuthForm itself is a client component and handles its internal state.
+            The AuthForm component now has its own Card with `card-3d`.
+            So, we don't need to wrap AuthForm in another Card here.
+        */}
         <Suspense fallback={<AuthFormFallback />}>
           <AuthForm />
         </Suspense>

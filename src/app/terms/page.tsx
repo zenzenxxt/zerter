@@ -1,3 +1,4 @@
+
 import { AppHeader } from '@/components/shared/header';
 import { AppFooter } from '@/components/shared/footer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,11 +8,11 @@ export default function TermsOfServicePage() {
     <div className="flex flex-col min-h-screen">
       <AppHeader />
       <main className="flex-grow container py-12 px-4 md:px-6">
-        <Card className="w-full max-w-3xl mx-auto shadow-lg">
+        <Card className="w-full max-w-3xl mx-auto card-3d">
           <CardHeader>
-            <CardTitle className="text-3xl">Terms of Service</CardTitle>
+            <CardTitle className="text-2xl sm:text-3xl">Terms of Service</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4 prose prose-sm sm:prose lg:prose-lg xl:prose-xl max-w-none">
+          <CardContent className="space-y-4 prose prose-sm sm:prose lg:prose-lg xl:prose-xl max-w-none text-card-foreground">
             <p><strong>Last Updated: {new Date().toLocaleDateString()}</strong></p>
 
             <p>Please read these Terms of Service ("Terms", "Terms of Service") carefully before using the ProctorPrep website and services (the "Service") operated by ProctorPrep ("us", "we", or "our").</p>

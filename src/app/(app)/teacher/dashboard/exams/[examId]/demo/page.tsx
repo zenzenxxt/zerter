@@ -143,7 +143,7 @@ export default function TeacherDemoExamPage() {
   if (pageError && !examDetails && !examLocallyStarted) {
      return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 to-slate-950 p-4">
-        <Card className="w-full max-w-md modern-card text-center shadow-xl bg-card/80 backdrop-blur-lg border-border/30">
+        <Card className="w-full max-w-md card-3d text-center shadow-xl bg-card/80 backdrop-blur-lg border-border/30">
            <CardHeader className="pt-8 pb-4">
             <ServerCrash className="h-16 w-16 text-destructive mx-auto mb-5" />
             <CardTitle className="text-2xl text-destructive">Cannot Load Demo</CardTitle>
@@ -160,7 +160,7 @@ export default function TeacherDemoExamPage() {
   if (!examDetails && !pageIsLoading && !examLocallyStarted) {
      return (
        <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 to-slate-950 p-4">
-        <Card className="w-full max-w-md modern-card text-center shadow-xl bg-card/80 backdrop-blur-lg border-border/30">
+        <Card className="w-full max-w-md card-3d text-center shadow-xl bg-card/80 backdrop-blur-lg border-border/30">
            <CardHeader className="pt-8 pb-4">
             <AlertTriangle className="h-16 w-16 text-destructive mx-auto mb-5" />
             <CardTitle className="text-2xl text-destructive">Demo Exam Not Found</CardTitle>
@@ -179,7 +179,7 @@ export default function TeacherDemoExamPage() {
     
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
-        <Card className="w-full max-w-lg modern-card shadow-xl">
+        <Card className="w-full max-w-lg card-3d shadow-xl">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl md:text-3xl font-bold text-foreground">
               Ready to Start Demo: {examDetails.title}
@@ -249,13 +249,15 @@ export default function TeacherDemoExamPage() {
         studentRollNumber={teacherUserId} 
         studentAvatarUrl={teacherAvatarUrl}
         examStarted={true}
+        actualStartTime={new Date().toISOString()} // For demo, actual start is "now"
+        onMediaPipeFlag={(flag) => console.log("[TeacherDemoPage] Demo MediaPipe Flag:", flag)} // Added placeholder
       />
     );
   }
 
   return (
      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 to-slate-950 p-4">
-        <Card className="w-full max-w-md modern-card text-center shadow-xl bg-card/80 backdrop-blur-lg border-border/30">
+        <Card className="w-full max-w-md card-3d text-center shadow-xl bg-card/80 backdrop-blur-lg border-border/30">
            <CardHeader className="pt-8 pb-4">
             <AlertTriangle className="h-16 w-16 text-destructive mx-auto mb-5" />
             <CardTitle className="text-2xl text-destructive">Error in Demo Setup</CardTitle>

@@ -23,7 +23,7 @@ export default function DeprecatedExamSessionPage() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
-      <Card className="w-full max-w-lg modern-card text-center shadow-xl">
+      <Card className="w-full max-w-lg card-3d text-center shadow-xl"> {/* Changed from modern-card */}
         <CardHeader className="pt-8 pb-4">
           <AlertTriangle className="h-16 w-16 text-orange-500 mx-auto mb-5" />
           <CardTitle className="text-2xl text-orange-500">Page Deprecated</CardTitle>

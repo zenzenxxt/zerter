@@ -44,7 +44,7 @@ export default function LandingPage() {
                   The Future of <span className="text-primary">Secure Online</span> Proctoring
                 </h1>
                 <p className="text-lg text-slate-600 md:text-xl max-w-2xl mx-auto dark:text-slate-300">
-                  ZenTest offers a robust, modern platform for conducting secure online exams, trusted by educators and students alike.
+                  ProctorPrep offers a robust, modern platform for conducting secure online exams, trusted by educators and students alike.
                 </p>
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-center items-center">
                   <Button size="lg" className="btn-primary-solid shadow-sm hover:shadow-md transition-shadow duration-300" asChild>
@@ -67,14 +67,14 @@ export default function LandingPage() {
         <section id="features" className="py-16 md:py-24 bg-muted/30">
           <div className="container px-4 md:px-6">
             <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl text-foreground">Why Choose ZenTest?</h2>
+              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl text-foreground">Why Choose ProctorPrep?</h2>
               <p className="mt-4 text-lg text-muted-foreground max-w-xl mx-auto">
                 Empowering education with cutting-edge proctoring technology.
               </p>
             </div>
             <div className="grid gap-6 md:gap-8 sm:grid-cols-2 lg:grid-cols-4">
               {features.map((feature, index) => (
-                <Card key={index} className="modern-card p-4 text-center bg-card hover:border-primary/30">
+                <Card key={index} className="card-3d p-4 text-center hover:border-primary/30">
                   <CardHeader className="items-center pt-4 pb-3">
                      {React.cloneElement(feature.icon, { className: "h-10 w-10 text-primary mb-3 stroke-width-1.5" })}
                     <CardTitle className="mt-2 text-lg font-semibold text-card-foreground">{feature.title}</CardTitle>
@@ -95,7 +95,7 @@ export default function LandingPage() {
               Ready to Elevate Your Online Exams?
             </h2>
             <p className="mt-4 mb-8 text-lg text-slate-600 max-w-xl mx-auto dark:text-slate-300">
-              Join ZenTest today and experience a seamless, secure, and intelligent proctoring solution.
+              Join ProctorPrep today and experience a seamless, secure, and intelligent proctoring solution.
             </p>
             <Button size="lg" className="btn-primary-solid shadow-md hover:shadow-lg transition-shadow duration-300 py-3 px-8 text-base" asChild>
               <Link href="/auth?action=register">

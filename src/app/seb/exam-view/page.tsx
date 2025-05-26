@@ -1,3 +1,4 @@
+
 // src/app/seb/exam-view/page.tsx
 // This page is now effectively DEPRECATED and replaced by /seb/entry (which reads token from hash)
 // It will show a message and redirect or suggest SEB quit.
@@ -25,7 +26,7 @@ export default function DeprecatedSebExamViewPage() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-slate-800 to-slate-900 text-slate-100">
-      <Card className="w-full max-w-lg modern-card text-center shadow-xl bg-card/80 backdrop-blur-lg border-border/30">
+      <Card className="w-full max-w-lg card-3d text-center shadow-xl bg-card/80 backdrop-blur-lg border-border/30"> {/* Changed from modern-card */}
         <CardHeader className="pt-8 pb-4">
           <AlertTriangle className="h-16 w-16 text-orange-500 mx-auto mb-5" />
           <CardTitle className="text-2xl text-orange-400">SEB Page Deprecated</CardTitle>
@@ -37,7 +38,7 @@ export default function DeprecatedSebExamViewPage() {
           </p>
           <p className="text-sm text-muted-foreground">
             If you are seeing this, your SEB configuration might be outdated (Start URL should be /seb/entry) or you have followed an old link.
-            Please re-initiate the exam from the ZenTest dashboard or contact support.
+            Please re-initiate the exam from the ProctorPrep dashboard or contact support.
           </p>
            <Button onClick={handleExitSeb} className="w-full btn-gradient-destructive mt-4">
             Exit SEB

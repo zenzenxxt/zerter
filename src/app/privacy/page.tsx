@@ -1,3 +1,4 @@
+
 import { AppHeader } from '@/components/shared/header';
 import { AppFooter } from '@/components/shared/footer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,11 +8,11 @@ export default function PrivacyPolicyPage() {
     <div className="flex flex-col min-h-screen">
       <AppHeader />
       <main className="flex-grow container py-12 px-4 md:px-6">
-        <Card className="w-full max-w-3xl mx-auto shadow-lg">
+        <Card className="w-full max-w-3xl mx-auto card-3d">
           <CardHeader>
-            <CardTitle className="text-3xl">Privacy Policy</CardTitle>
+            <CardTitle className="text-2xl sm:text-3xl">Privacy Policy</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4 prose prose-sm sm:prose lg:prose-lg xl:prose-xl max-w-none">
+          <CardContent className="space-y-4 prose prose-sm sm:prose lg:prose-lg xl:prose-xl max-w-none text-card-foreground">
             <p><strong>Last Updated: {new Date().toLocaleDateString()}</strong></p>
             
             <p>Welcome to ProctorPrep ("we," "our," or "us"). We are committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website and use our services.</p>
