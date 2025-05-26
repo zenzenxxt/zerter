@@ -1,4 +1,4 @@
-# **App Name**: ProctorPrep
+# **App Name**: ZenTest
 
 ## Core Features:
 

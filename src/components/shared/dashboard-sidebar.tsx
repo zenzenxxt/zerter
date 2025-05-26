@@ -22,8 +22,9 @@ import type { LucideIcon } from 'lucide-react';
 import type { CustomUser } from '@/types/supabase';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from '@/lib/utils';
-import logoAsset from '../../../logo.png'; 
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import logoAsset from '../../../logo.png';
+// Removed local AlertDialog imports as they are no longer used here for logout.
+// The AuthContext will manage its own AlertDialog.
 
 export interface NavItem {
   href: string;
@@ -37,7 +38,7 @@ interface SidebarElementsProps {
   navItems: NavItem[];
   userRoleDashboard: 'student' | 'teacher';
   user: CustomUser | null;
-  signOut: () => Promise<void>; // signOut comes from AuthContext now
+  signOut: () => void; // This prop should trigger the AuthContext's logout dialog
   authLoading: boolean;
   className?: string;
 }
@@ -98,7 +99,7 @@ export function SidebarElements({ navItems, userRoleDashboard, user, signOut, au
   return (
     <Sidebar
         collapsible="icon"
-        className={cn("sidebar-glass", className)}
+        className={cn("sidebar-bg", className)}
     >
       <SidebarHeader className="p-3 border-b border-sidebar-border/60 h-20 flex items-center">
         <div className="flex items-center justify-between w-full group-data-[collapsible=icon]:justify-center">
@@ -174,34 +175,18 @@ export function SidebarElements({ navItems, userRoleDashboard, user, signOut, au
                         </p>
                     </div>
                 </div>
-                 <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            disabled={authLoading}
-                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8 rounded-full"
-                            aria-label="Logout"
-                            title="Logout"
-                        >
-                        {authLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="bg-popover border-border">
-                        <AlertDialogHeader>
-                        <AlertDialogTitle className="text-foreground">Confirm Logout</AlertDialogTitle>
-                        <AlertDialogDescription className="text-muted-foreground">
-                            Are you sure you want to log out?
-                        </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                        <AlertDialogCancel className="btn-outline-subtle">Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={signOut} className="btn-gradient-destructive">
-                            Logout
-                        </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
+                 {/* Removed local AlertDialog. Button now directly calls the signOut prop. */}
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={authLoading}
+                    className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8 rounded-full"
+                    aria-label="Logout"
+                    title="Logout"
+                    onClick={signOut} // This calls props.signOut, which triggers AuthContext's dialog
+                >
+                {authLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+                </Button>
             </div>
         )}
         {!user && authLoading && (

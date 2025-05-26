@@ -163,7 +163,7 @@ export default function AuthPage() {
             transform: `perspective(1000px) rotateY(${mousePosition.x * 0.02 - 1}deg) rotateX(${mousePosition.y * 0.02 - 1}deg)`,
           }}
         >
-          <h1 className="text-5xl lg:text-6xl font-bold mb-6 text-white">ProctorPrep</h1>
+          <h1 className="text-5xl lg:text-6xl font-bold mb-6 text-white">ZenTest</h1>
           <p className="text-xl lg:text-2xl leading-relaxed text-blue-100">
             The all-in-one AI-powered platform for secure, seamless, and stress-free online exams.
           </p>
