@@ -13,14 +13,13 @@ import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { SidebarElements, type NavItem } from '@/components/shared/dashboard-sidebar';
-import logoAssetDark from '../../../../../logo.png';
+import logoAsset from '../../../../../logo.png';
 
 const teacherNavItems: NavItem[] = [
   { href: '/teacher/dashboard/overview', label: 'Overview', icon: LayoutDashboard, group: 'MAIN' },
   { href: '/teacher/dashboard/exams', label: 'Manage Exams', icon: BookOpenCheck, group: 'MAIN' },
   { href: '/teacher/dashboard/ai-assistant', label: 'AI Assistant', icon: Brain, group: 'MAIN' },
   { href: '/teacher/dashboard/results', label: 'Student Results', icon: BarChart3, group: 'MAIN' },
-  // Profile and Settings will be in the SidebarFooter or a separate group if needed
 ];
 
 const AUTH_ROUTE = '/auth';
@@ -96,12 +95,12 @@ export default function TeacherDashboardLayout({
                     navItems={teacherNavItems}
                     userRoleDashboard="teacher"
                     user={user}
-                    signOut={() => { signOut(); setShowSignOutDialog(false); }}
+                    setShowSignOutDialog={setShowSignOutDialog} // Changed from signOut={signOut}
                     authLoading={authLoading}
                     className="sidebar-bg"
                 />
                  <SidebarInset>
-                    <main className="flex-1 p-8 lg:p-12 bg-slate-50 overflow-y-auto">
+                    <main className="flex-1 p-4 bg-slate-50 overflow-y-auto">
                     {showFullHeader && (
                         <header className={cn(
                             "flex items-center mb-12", 

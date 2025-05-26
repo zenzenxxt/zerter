@@ -13,13 +13,12 @@ import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { SidebarElements, type NavItem } from '@/components/shared/dashboard-sidebar';
-import logoAssetDark from '../../../../../logo.png';
+import logoAsset from '../../../../../logo.png';
 
 const studentNavItems: NavItem[] = [
   { href: '/student/dashboard/overview', label: 'Overview', icon: LayoutDashboard, group: 'MAIN' },
   { href: '/student/dashboard/join-exam', label: 'Join Exam', icon: Edit3, group: 'MAIN' },
   { href: '/student/dashboard/exam-history', label: 'Exam History', icon: History, group: 'MAIN' },
-  // Profile and Settings will be in the SidebarFooter or a separate group if needed
 ];
 
 const AUTH_ROUTE = '/auth';
@@ -95,12 +94,12 @@ export default function StudentDashboardLayout({
                 navItems={studentNavItems}
                 userRoleDashboard="student"
                 user={user}
-                signOut={() => { signOut(); setShowSignOutDialog(false); }} // Ensure dialog closes on signout
+                setShowSignOutDialog={setShowSignOutDialog} // Changed from signOut={signOut}
                 authLoading={authLoading}
                 className="sidebar-bg"
             />
             <SidebarInset>
-                <main className="flex-1 p-8 lg:p-12 bg-slate-50 overflow-y-auto">
+                <main className="flex-1 p-4 bg-slate-50 overflow-y-auto">
                     {showFullHeader && (
                     <header className={cn(
                         "flex items-center mb-12",

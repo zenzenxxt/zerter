@@ -23,8 +23,6 @@ import type { CustomUser } from '@/types/supabase';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from '@/lib/utils';
 import logoAsset from '../../../logo.png';
-// Removed local AlertDialog imports as they are no longer used here for logout.
-// The AuthContext will manage its own AlertDialog.
 
 export interface NavItem {
   href: string;
@@ -38,12 +36,12 @@ interface SidebarElementsProps {
   navItems: NavItem[];
   userRoleDashboard: 'student' | 'teacher';
   user: CustomUser | null;
-  signOut: () => void; // This prop should trigger the AuthContext's logout dialog
+  setShowSignOutDialog: React.Dispatch<React.SetStateAction<boolean>>; // Changed from signOut: () => void
   authLoading: boolean;
   className?: string;
 }
 
-export function SidebarElements({ navItems, userRoleDashboard, user, signOut, authLoading, className }: SidebarElementsProps) {
+export function SidebarElements({ navItems, userRoleDashboard, user, setShowSignOutDialog, authLoading, className }: SidebarElementsProps) {
   const pathname = usePathname();
 
   const mainNavItems = navItems.filter(item => !item.group || item.group === 'MAIN');
@@ -175,7 +173,6 @@ export function SidebarElements({ navItems, userRoleDashboard, user, signOut, au
                         </p>
                     </div>
                 </div>
-                 {/* Removed local AlertDialog. Button now directly calls the signOut prop. */}
                 <Button
                     variant="ghost"
                     size="icon"
@@ -183,7 +180,7 @@ export function SidebarElements({ navItems, userRoleDashboard, user, signOut, au
                     className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8 rounded-full"
                     aria-label="Logout"
                     title="Logout"
-                    onClick={signOut} // This calls props.signOut, which triggers AuthContext's dialog
+                    onClick={() => setShowSignOutDialog(true)} // Changed
                 >
                 {authLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
                 </Button>
