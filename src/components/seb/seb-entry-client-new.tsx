@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback, Suspense } from 'react';
+import React, { useEffect, useState, useCallback, Suspense, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -64,16 +64,21 @@ const generalRules = [
   { text: "Ensure SEB is in fullscreen mode if required by your institution.", icon: Maximize },
 ];
 
+interface SebEntryClientNewProps {
+  entryTokenFromPath?: string | null;
+}
 
-export function SebEntryClientNew() {
+export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { supabase, isLoading: authContextLoading } = useAuth();
   const { toast } = useToast();
 
+  const [mounted, setMounted] = useState(false);
   const [stage, setStage] = useState<string>('initializing');
   const [pageError, setPageError] = useState<string | null>(null);
 
+  const [tokenForValidation, setTokenForValidation] = useState<string | null>(null);
   const [validatedStudentId, setValidatedStudentId] = useState<string | null>(null);
   const [validatedExamId, setValidatedExamId] = useState<string | null>(null);
   const [isPreviouslySubmitted, setIsPreviouslySubmitted] = useState(false);
@@ -92,6 +97,39 @@ export function SebEntryClientNew() {
 
 
   const isDevModeActive = process.env.NEXT_PUBLIC_DEV_MODE_SKIP_SEB_LAUNCH === "true";
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const tokenFromQueryString = useMemo(() => {
+    if (mounted && searchParams) {
+      return searchParams.get('token');
+    }
+    return null;
+  }, [searchParams, mounted]);
+
+  useEffect(() => {
+    const effectId = `[SebEntryClientNew TokenDeterminationEffect ${Date.now().toString().slice(-4)}]`;
+    let determinedToken: string | null = null;
+
+    if (entryTokenFromPath) {
+      console.log(`${effectId} Using token from path: ${entryTokenFromPath.substring(0,10)}...`);
+      determinedToken = entryTokenFromPath;
+    } else if (tokenFromQueryString) {
+      console.log(`${effectId} Using token from query string: ${tokenFromQueryString.substring(0,10)}...`);
+      determinedToken = tokenFromQueryString;
+    } else if (mounted) { // Only log missing if mounted and still no token from query
+        console.log(`${effectId} No token found in path or query string (component mounted).`);
+    }
+    // Set to null if not found, or the token value.
+    // This effect will run multiple times: initially, when mounted changes, when searchParams changes.
+    // We only want to set tokenForValidation once it's definitively determined or confirmed missing.
+    if (mounted) { // Only update tokenForValidation once mounted to avoid premature nulls
+        setTokenForValidation(determinedToken);
+    }
+  }, [entryTokenFromPath, tokenFromQueryString, mounted]);
+
 
   useEffect(() => {
     const initialChecks: SecurityCheck[] = [
@@ -120,7 +158,6 @@ export function SebEntryClientNew() {
       { id: 'webDriver', label: 'Automation Tools', checkFn: () => !isWebDriverActive(), isCritical: true, status: 'pending', icon: Ban },
     ];
     
-    // Update criticality of webcam check if examDetails are available
     if (examDetails) {
       const proctoringEnabledForThisExam = examDetails.enable_webcam_proctoring ?? false;
       setSecurityChecks(
@@ -168,11 +205,15 @@ export function SebEntryClientNew() {
       }
 
       if (stage === 'initializing' || (stage === 'validatingToken' && !validatedExamId)) {
-        const tokenFromQuery = searchParams?.get('token');
-
-        if (!tokenFromQuery) {
-          const errorMsg = "CRITICAL: SEB entry token missing from URL query parameters.";
-          setPageError(errorMsg); setStage('error'); return;
+        
+        if (!tokenForValidation) { // Use the state variable now
+          // This might happen if token is not in path and searchParams not yet processed or no token in query
+          if (mounted && stage === 'initializing') { // if mounted and still no token, then it's truly missing
+            const errorMsg = "CRITICAL: SEB entry token missing from URL.";
+            setPageError(errorMsg); setStage('error'); return;
+          }
+          // Otherwise, might still be waiting for tokenForValidation to be set
+          return; 
         }
 
         if (!isDevModeActive && !isSebEnvironment()) {
@@ -186,7 +227,7 @@ export function SebEntryClientNew() {
         const timeoutId = setTimeout(() => controller.abort(), TOKEN_VALIDATION_TIMEOUT_MS);
 
         try {
-          const res = await fetch(`/api/seb/validate-token?token=${encodeURIComponent(tokenFromQuery)}`, {
+          const res = await fetch(`/api/seb/validate-token?token=${encodeURIComponent(tokenForValidation)}`, {
             method: 'GET', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
           });
           clearTimeout(timeoutId);
@@ -274,10 +315,15 @@ export function SebEntryClientNew() {
       }
     }
 
-    if (stage === 'initializing' || stage === 'validatingToken' || stage === 'fetchingDetails') {
+    if (mounted && (stage === 'initializing' || stage === 'validatingToken' || stage === 'fetchingDetails')) {
+      if (stage === 'initializing' && !tokenForValidation && !authContextLoading) {
+        // If mounted, initialized, but no token determined yet, it's likely an actual missing token
+        // The TokenDeterminationEffect should set tokenForValidation to null if none found
+        // This validateAndFetch effect will then catch the null tokenForValidation
+      }
       validateAndFetch();
     }
-  }, [stage, searchParams, isDevModeActive, supabase, authContextLoading, validatedExamId, validatedStudentId, isPreviouslySubmitted]);
+  }, [stage, tokenForValidation, isDevModeActive, supabase, authContextLoading, validatedExamId, validatedStudentId, isPreviouslySubmitted, mounted]);
 
   const runSecurityChecks = useCallback(async () => {
     if (!examDetails || !studentProfile || !validatedStudentId) {
@@ -290,21 +336,19 @@ export function SebEntryClientNew() {
 
     const proctoringEnabledForThisExam = examDetails.enable_webcam_proctoring ?? false;
 
-    // Use a temporary copy of securityChecks for updates to avoid direct state mutation in loop
     let currentChecks = [...securityChecks];
 
-    // First, update the criticality of the webcam check based on examDetails
     currentChecks = currentChecks.map(check => {
         if (check.id === 'webcamAndMediaPipe') {
             return {
                 ...check,
                 isCritical: proctoringEnabledForThisExam,
-                status: 'pending' // Reset status
+                status: 'pending' 
             };
         }
-        return {...check, status: 'pending'}; // Reset status for others too
+        return {...check, status: 'pending'}; 
     });
-    setSecurityChecks(currentChecks); // Set all to pending first with updated criticality
+    setSecurityChecks(currentChecks); 
 
     for (let i = 0; i < currentChecks.length; i++) {
       const check = currentChecks[i];
@@ -356,7 +400,7 @@ export function SebEntryClientNew() {
     
     try {
       const examStartTime = new Date().toISOString();
-      setActualStartTime(examStartTime); // Set actual start time here
+      setActualStartTime(examStartTime); 
 
       const { error: submissionUpsertError } = await supabase.from('ExamSubmissionsX')
         .upsert({
@@ -472,6 +516,23 @@ export function SebEntryClientNew() {
 
   const isLoadingCriticalStages = stage === 'initializing' || stage === 'validatingToken' || stage === 'fetchingDetails' || (authContextLoading && stage === 'initializing');
 
+  if (isLoadingCriticalStages && !pageError && !tokenForValidation && mounted) {
+     // If mounted and token is still null after TokenDeterminationEffect, it means no token was found.
+     // This is a specific state that should lead to an error rather than infinite loading.
+     if (stage === 'initializing' || stage === 'validatingToken') {
+        // Only set error if we are in a stage where token is expected.
+        // If we already passed token validation and are in fetchingDetails, it's not a token issue.
+        const errorMsg = "CRITICAL: SEB entry token missing or could not be determined.";
+        // To avoid an infinite loop of setting error and re-triggering effects,
+        // we only set this if pageError is currently null.
+        if (!pageError) {
+            setPageError(errorMsg);
+            setStage('error');
+        }
+     }
+  }
+
+
   if (isLoadingCriticalStages && !pageError) {
     let message = "Initializing Secure Exam Environment...";
     if (stage === 'validatingToken') message = "Validating exam session token...";
@@ -569,6 +630,8 @@ export function SebEntryClientNew() {
   }
 
   if (!examDetails || !studentProfile || !isDataReadyForExam) {
+    // This state should ideally be caught by the pageError block if fetching failed.
+    // If it's reached, it means data fetching completed but variables are still null.
     return (
       <main className="min-h-screen w-full flex flex-col items-center justify-center bg-background text-foreground overflow-hidden p-2">
         <Card className="w-full max-w-lg text-center bg-card p-6 sm:p-8 rounded-xl shadow-xl border-destructive/50">
