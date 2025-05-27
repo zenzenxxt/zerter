@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, PlayCircle, ShieldCheck, XCircle, Info, LogOut, ServerCrash, CheckCircle, Ban, CircleSlash, BookOpen, UserCircle2, CalendarDays, ListChecks, Shield, ClockIcon, FileTextIcon, HelpCircleIcon, Wifi, Maximize, Zap, CameraIcon as CameraIconLucide, CameraOff } from 'lucide-react'; // Renamed CameraIcon
+import { Loader2, AlertTriangle, PlayCircle, ShieldCheck, XCircle, Info, LogOut, ServerCrash, CheckCircle, Ban, CircleSlash, BookOpen, UserCircle2, CalendarDays, ListChecks, Shield, ClockIcon, FileTextIcon, HelpCircleIcon, Wifi, Maximize, Zap, CameraIcon, CameraOff } from 'lucide-react';
 import type { Exam, CustomUser, FlaggedEvent, FlaggedEventType } from '@/types/supabase';
-import { useToast, toast as globalToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast'; // Corrected import
 import { format, isValid as isValidDate, parseISO } from 'date-fns';
 import { isSebEnvironment, isOnline, areDevToolsLikelyOpen, isWebDriverActive } from '@/lib/seb-utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -72,7 +72,7 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
   const router = useRouter();
   const searchParamsHook = useSearchParams(); 
   const { supabase, isLoading: authContextLoading } = useAuth();
-  const { toast } = useGlobalToast();
+  const { toast } = useToast(); // Corrected usage
 
   const [mounted, setMounted] = useState(false);
   const [stage, setStage] = useState<string>('initializing');
@@ -107,63 +107,64 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
     }
     return null;
   }, [searchParamsHook, mounted]);
-
+  
   useEffect(() => {
-    const initialChecks: SecurityCheck[] = [
-      { id: 'sebEnv', label: 'SEB Environment', checkFn: isSebEnvironment, isCritical: !isDevModeActive, status: 'pending', icon: Shield },
-      { id: 'online', label: 'Internet Connection', checkFn: isOnline, isCritical: true, status: 'pending', icon: Wifi },
-      {
-        id: 'webcamAndMediaPipe',
-        label: 'Webcam & Proctoring Models',
-        checkFn: async () => {
-          // This check's criticality is determined later based on examDetails
-          if (!examDetails || !(examDetails.enable_webcam_proctoring ?? false)) return true; // Skip if proctoring is not enabled for the exam
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            stream.getTracks().forEach(track => track.stop()); // Release camera immediately after check
-            await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
-            return true;
-          } catch (err) {
-            console.error("[SebEntryClientNew] Webcam/MediaPipe prerequisite check failed:", err);
-            globalToast({ title: "Webcam/Proctoring Check Failed", description: getSafeErrorMessage(err, "Could not access webcam or load proctoring models."), variant: "destructive", duration: 7000 });
-            return false;
-          }
+    const initialChecksBase: Omit<SecurityCheck, 'status' | 'details' | 'isCritical'>[] = [
+        { id: 'sebEnv', label: 'SEB Environment', checkFn: isSebEnvironment, icon: Shield },
+        { id: 'online', label: 'Internet Connection', checkFn: isOnline, icon: Wifi },
+        {
+            id: 'webcamAndMediaPipe',
+            label: 'Webcam & Proctoring Models',
+            checkFn: async () => {
+                if (!examDetails || !(examDetails.enable_webcam_proctoring ?? false)) return true;
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    stream.getTracks().forEach(track => track.stop());
+                    await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+                    return true;
+                } catch (err) {
+                    console.error("[SebEntryClientNew] Webcam/MediaPipe prerequisite check failed:", err);
+                    toast({ title: "Webcam/Proctoring Check Failed", description: getSafeErrorMessage(err, "Could not access webcam or load proctoring models."), variant: "destructive", duration: 7000 });
+                    return false;
+                }
+            },
+            icon: CameraIcon,
         },
-        isCritical: false, // Will be updated once examDetails are fetched
-        status: 'pending',
-        icon: CameraIconLucide,
-      },
-      { id: 'devTools', label: 'Developer Tools', checkFn: () => !areDevToolsLikelyOpen(), isCritical: true, status: 'pending', icon: Zap },
-      { id: 'webDriver', label: 'Automation Tools', checkFn: () => !isWebDriverActive(), isCritical: true, status: 'pending', icon: Ban },
+        { id: 'devTools', label: 'Developer Tools', checkFn: () => !areDevToolsLikelyOpen(), icon: Zap },
+        { id: 'webDriver', label: 'Automation Tools', checkFn: () => !isWebDriverActive(), icon: Ban },
     ];
-    
-    if (examDetails) {
-      const proctoringEnabledForThisExam = examDetails.enable_webcam_proctoring ?? false;
-      setSecurityChecks(
-        initialChecks.map(check =>
-          check.id === 'webcamAndMediaPipe'
-            ? { ...check, isCritical: proctoringEnabledForThisExam, status: 'pending' } 
-            : { ...check, status: 'pending'}
-        )
-      );
-    } else {
-      // Initialize with webcam check as non-critical by default until exam details are loaded
-      setSecurityChecks(initialChecks.map(c => ({ ...c, status: 'pending', isCritical: c.id === 'webcamAndMediaPipe' ? false : c.isCritical })));
-    }
-  }, [isDevModeActive, examDetails]); 
+
+    const proctoringEnabledForThisExam = examDetails?.enable_webcam_proctoring ?? false;
+
+    setSecurityChecks(
+        initialChecksBase.map(check => {
+            let isCrit = false;
+            if (check.id === 'sebEnv') isCrit = !isDevModeActive;
+            else if (check.id === 'online' || check.id === 'devTools' || check.id === 'webDriver') isCrit = true;
+            else if (check.id === 'webcamAndMediaPipe') isCrit = proctoringEnabledForThisExam;
+
+            return {
+                ...check,
+                status: 'pending',
+                isCritical: isCrit,
+            };
+        })
+    );
+  }, [isDevModeActive, examDetails, toast]); // Added examDetails and toast to dependency array
 
   const handleExitSeb = useCallback(() => {
-    globalToast({ title: "Exiting SEB", description: "Safe Exam Browser will attempt to close.", duration: 3000 });
+    toast({ title: "Exiting SEB", description: "Safe Exam Browser will attempt to close.", duration: 3000 });
     if (typeof window !== 'undefined') window.location.href = "seb://quit";
-  }, [globalToast]);
+  }, [toast]);
 
 
   useEffect(() => {
-    const effectId = `[SebEntryClientNew MainEffect ${Date.now().toString().slice(-4)}]`;
+    const effectId = `[SebEntryClientNew MainEffect ${Date.now().toString().slice(-5)}]`;
     
-    async function validateAndFetchInternal() {
+    const validateAndFetchInternal = async () => {
       console.log(`${effectId} Running. Stage: ${stage}, Mounted: ${mounted}, AuthLoading: ${authContextLoading}, PageError: ${pageError}`);
       const effectiveTokenToUse = entryTokenFromPath || tokenFromQueryHook;
+      console.log(`${effectId} entryTokenFromPath: ${entryTokenFromPath ? entryTokenFromPath.substring(0,10) + '...' : 'undefined'}, tokenFromQueryHook: ${tokenFromQueryHook ? tokenFromQueryHook.substring(0,10) + '...' : 'null'}`);
       console.log(`${effectId} effectiveTokenToUse: ${effectiveTokenToUse ? effectiveTokenToUse.substring(0,10) + "..." : "null"}`);
 
       if (stage === 'initializing' || (stage === 'validatingToken' && !validatedExamId)) {
@@ -285,7 +286,8 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
         validateAndFetchInternal();
       }
     }
-  }, [stage, entryTokenFromPath, tokenFromQueryHook, isDevModeActive, supabase, authContextLoading, mounted]); // Removed pageError and states set by this effect
+  }, [stage, entryTokenFromPath, tokenFromQueryHook, isDevModeActive, supabase, authContextLoading, mounted, pageError, validatedExamId, validatedStudentId, isPreviouslySubmitted]);
+
 
   const runSecurityChecks = useCallback(async () => {
     if (!examDetails || !studentProfile || !validatedStudentId) {
@@ -361,14 +363,14 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
 
       if (submissionUpsertError) {
         const warningMsg = getSafeErrorMessage(submissionUpsertError, "Could not record exam start accurately.");
-        globalToast({ title: "Start Record Warning", description: warningMsg, variant: "default" });
+        toast({ title: "Start Record Warning", description: warningMsg, variant: "default" });
       }
       setStage('examInProgress');
     } catch (e: any) {
       const errorMsg = getSafeErrorMessage(e, "Failed to initialize exam session state.");
       setPageError(errorMsg); setStage('error');
     }
-  }, [examDetails, validatedStudentId, supabase, studentProfile, globalToast, isDataReadyForExam]);
+  }, [examDetails, validatedStudentId, supabase, studentProfile, toast, isDataReadyForExam]);
 
   useEffect(() => {
     if (stage === 'startingExamSession') {
@@ -386,8 +388,8 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
         details: eventData.details,
     };
     setAccumulatedMediaPipeFlags(prev => [...prev, newFlag]);
-    globalToast({ title: "Proctoring Alert", description: `${newFlag.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: ${newFlag.details || 'Activity detected.'}`, variant: "destructive", duration: 4000 });
-  }, [validatedStudentId, validatedExamId, examDetails, globalToast]);
+    toast({ title: "Proctoring Alert", description: `${newFlag.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: ${newFlag.details || 'Activity detected.'}`, variant: "destructive", duration: 4000 });
+  }, [validatedStudentId, validatedExamId, examDetails, toast]);
 
   const handleBrowserFlagEvent = useCallback((eventData: { type: FlaggedEventType; details?: string }) => {
     if (!validatedStudentId || !validatedExamId ) return; 
@@ -405,7 +407,7 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
   const handleExamSubmitOrTimeUp = useCallback(async (answers: Record<string, string>, browserFlagsFromInterface: FlaggedEvent[], examInterfaceActualStartTime: string, submissionType: 'submit' | 'timeup') => {
     if (!validatedExamId || !validatedStudentId || !examDetails || !studentProfile || !examInterfaceActualStartTime) {
       const errorMsg = "Student, Exam details, or actual start time missing for submission. Cannot submit.";
-      globalToast({ title: "Submission Error", description: errorMsg, variant: "destructive" });
+      toast({ title: "Submission Error", description: errorMsg, variant: "destructive" });
       setPageError(errorMsg); setStage('error'); return;
     }
     setStage('submittingExam'); setIsSubmittingViaApi(true);
@@ -450,18 +452,18 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
         throw new Error("Could not parse submission confirmation from server.");
       }
 
-      globalToast({ title: submissionType === 'submit' ? "Exam Submitted!" : "Exam Auto-Submitted!", description: "Your responses have been recorded.", duration: 6000 });
+      toast({ title: submissionType === 'submit' ? "Exam Submitted!" : "Exam Auto-Submitted!", description: "Your responses have been recorded.", duration: 6000 });
       setExamDetails(prev => prev ? ({ ...prev, status: 'Completed' }) : null);
       setIsPreviouslySubmitted(true);
       setStage('examCompleted');
     } catch (e: any) {
       const errorMsg = getSafeErrorMessage(e, "Failed to submit exam.");
       setPageError(`Submission Error: ${errorMsg}`); setStage('error');
-      globalToast({ title: "Submission Error", description: errorMsg, variant: "destructive", duration: 10000 });
+      toast({ title: "Submission Error", description: errorMsg, variant: "destructive", duration: 10000 });
     } finally {
       setIsSubmittingViaApi(false);
     }
-  }, [validatedExamId, validatedStudentId, examDetails, studentProfile, globalToast, accumulatedMediaPipeFlags, accumulatedBrowserFlags]);
+  }, [validatedExamId, validatedStudentId, examDetails, studentProfile, toast, accumulatedMediaPipeFlags, accumulatedBrowserFlags]);
 
   const isLoadingCriticalStages = stage === 'initializing' || stage === 'validatingToken' || stage === 'fetchingDetails' || (authContextLoading && stage === 'initializing');
 
@@ -633,7 +635,7 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
               <p className="flex items-center gap-1.5 text-muted-foreground"><CalendarDays className="h-3.5 w-3.5 text-primary shrink-0 stroke-width-1.5" /> End: <span className="font-medium text-foreground">{format(parseISO(examDetails.end_time), "MMM d, hh:mm a")}</span></p>
             }
             <p className="flex items-center gap-1.5 text-muted-foreground"><ListChecks className="h-3.5 w-3.5 text-primary shrink-0 stroke-width-1.5" /> Backtracking: <span className="font-medium text-foreground">{examDetails.allow_backtracking ? 'Allowed' : 'Not Allowed'}</span></p>
-            <p className="flex items-center gap-1.5 text-muted-foreground"><CameraIconLucide className="h-3.5 w-3.5 text-primary shrink-0 stroke-width-1.5"/> Proctoring: <span className="font-medium text-foreground">{(examDetails.enable_webcam_proctoring ?? false) ? 'Enabled' : 'Disabled'}</span></p>
+            <p className="flex items-center gap-1.5 text-muted-foreground"><CameraIcon className="h-3.5 w-3.5 text-primary shrink-0 stroke-width-1.5"/> Proctoring: <span className="font-medium text-foreground">{(examDetails.enable_webcam_proctoring ?? false) ? 'Enabled' : 'Disabled'}</span></p>
           </div>
         </div>
         {showExitSebButton && (
