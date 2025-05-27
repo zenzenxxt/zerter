@@ -72,7 +72,7 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
   const router = useRouter();
   const searchParamsHook = useSearchParams(); 
   const { supabase, isLoading: authContextLoading } = useAuth();
-  const { toast } = useToast();
+  const { toast } = useGlobalToast();
 
   const [mounted, setMounted] = useState(false);
   const [stage, setStage] = useState<string>('initializing');
@@ -108,7 +108,6 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
     return null;
   }, [searchParamsHook, mounted]);
 
-
   useEffect(() => {
     const initialChecks: SecurityCheck[] = [
       { id: 'sebEnv', label: 'SEB Environment', checkFn: isSebEnvironment, isCritical: !isDevModeActive, status: 'pending', icon: Shield },
@@ -117,7 +116,8 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
         id: 'webcamAndMediaPipe',
         label: 'Webcam & Proctoring Models',
         checkFn: async () => {
-          if (!examDetails || !(examDetails.enable_webcam_proctoring ?? false)) return true;
+          // This check's criticality is determined later based on examDetails
+          if (!examDetails || !(examDetails.enable_webcam_proctoring ?? false)) return true; // Skip if proctoring is not enabled for the exam
           try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             stream.getTracks().forEach(track => track.stop()); // Release camera immediately after check
@@ -129,7 +129,7 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
             return false;
           }
         },
-        isCritical: examDetails ? (examDetails.enable_webcam_proctoring ?? false) : false, 
+        isCritical: false, // Will be updated once examDetails are fetched
         status: 'pending',
         icon: CameraIconLucide,
       },
@@ -147,6 +147,7 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
         )
       );
     } else {
+      // Initialize with webcam check as non-critical by default until exam details are loaded
       setSecurityChecks(initialChecks.map(c => ({ ...c, status: 'pending', isCritical: c.id === 'webcamAndMediaPipe' ? false : c.isCritical })));
     }
   }, [isDevModeActive, examDetails]); 
@@ -154,32 +155,26 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
   const handleExitSeb = useCallback(() => {
     globalToast({ title: "Exiting SEB", description: "Safe Exam Browser will attempt to close.", duration: 3000 });
     if (typeof window !== 'undefined') window.location.href = "seb://quit";
-  }, []);
+  }, [globalToast]);
+
 
   useEffect(() => {
     const effectId = `[SebEntryClientNew MainEffect ${Date.now().toString().slice(-4)}]`;
-    console.log(`${effectId} Running. Stage: ${stage}, Mounted: ${mounted}, AuthLoading: ${authContextLoading}, PageError: ${pageError}`);
-    console.log(`${effectId} entryTokenFromPath: ${entryTokenFromPath ? entryTokenFromPath.substring(0,10) + "..." : "undefined" }, tokenFromQueryHook: ${tokenFromQueryHook ? tokenFromQueryHook.substring(0,10) + "..." : "null"}`);
-
-
+    
     async function validateAndFetchInternal() {
-      if (authContextLoading && stage === 'initializing') {
-        console.log(`${effectId} Waiting: AuthContext is loading.`);
-        return;
-      }
-
+      console.log(`${effectId} Running. Stage: ${stage}, Mounted: ${mounted}, AuthLoading: ${authContextLoading}, PageError: ${pageError}`);
       const effectiveTokenToUse = entryTokenFromPath || tokenFromQueryHook;
       console.log(`${effectId} effectiveTokenToUse: ${effectiveTokenToUse ? effectiveTokenToUse.substring(0,10) + "..." : "null"}`);
 
       if (stage === 'initializing' || (stage === 'validatingToken' && !validatedExamId)) {
+        if (!effectiveTokenToUse && mounted) {
+          const errorMsg = "CRITICAL: SEB entry token missing or could not be determined.";
+          console.error(`${effectId} ${errorMsg}. entryTokenFromPath: ${entryTokenFromPath}, tokenFromQueryHook: ${tokenFromQueryHook}`);
+          setPageError(errorMsg); setStage('error'); return;
+        }
         if (!effectiveTokenToUse) {
-          if (mounted && (stage === 'initializing' || stage === 'validatingToken')) {
-            const errorMsg = "CRITICAL: SEB entry token missing or could not be determined.";
-            console.error(`[SebEntryClientNew validateAndFetchInternal] ${errorMsg}. entryTokenFromPath: ${entryTokenFromPath}, tokenFromQueryHook (memoized): ${tokenFromQueryHook}`);
-            setPageError(errorMsg); setStage('error'); return;
-          }
-          console.log(`${effectId} Waiting: Token not yet available (component might not be fully mounted or searchParams not resolved).`);
-          return; 
+           console.log(`${effectId} Waiting: Token not yet available (component might not be fully mounted or searchParams not resolved).`);
+           return;
         }
 
         if (!isDevModeActive && !isSebEnvironment()) {
@@ -231,11 +226,13 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
         return;
       }
 
-
-      if (stage === 'fetchingDetails' && validatedExamId && validatedStudentId) {
+      if (stage === 'fetchingDetails') {
         if (!supabase) {
           const errorMsg = "CRITICAL: Service connection failed. Cannot load exam details.";
           setPageError(errorMsg); setStage('error'); return;
+        }
+        if (!validatedExamId || !validatedStudentId) { 
+            setPageError("Internal error: Missing validated IDs for fetching details."); setStage('error'); return;
         }
 
         let fetchedExam: Exam | null = null;
@@ -262,17 +259,7 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
 
           setExamDetails(fetchedExam); 
           setStudentProfile(fetchedStudent);
-
-          const proctoringEnabledForThisExam = fetchedExam.enable_webcam_proctoring ?? false;
-          setSecurityChecks(prevChecks =>
-            prevChecks.map(check =>
-              check.id === 'webcamAndMediaPipe'
-                ? { ...check, isCritical: proctoringEnabledForThisExam, status: 'pending' } 
-                : check
-            )
-          );
-
-
+          
           if (fetchedExam.questions && fetchedExam.questions.length > 0) {
             setIsDataReadyForExam(true);
             if (isPreviouslySubmitted) {
@@ -291,11 +278,14 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
       }
     }
 
-    if (mounted && !pageError && (stage === 'initializing' || stage === 'validatingToken' || stage === 'fetchingDetails')) {
-      validateAndFetchInternal();
+    if (mounted && !pageError) { 
+      if(authContextLoading && stage === 'initializing') {
+        // Still wait if auth context is loading and we are at the very beginning
+      } else {
+        validateAndFetchInternal();
+      }
     }
-  }, [stage, entryTokenFromPath, tokenFromQueryHook, isDevModeActive, supabase, authContextLoading, validatedExamId, validatedStudentId, isPreviouslySubmitted, mounted, pageError]);
-
+  }, [stage, entryTokenFromPath, tokenFromQueryHook, isDevModeActive, supabase, authContextLoading, mounted]); // Removed pageError and states set by this effect
 
   const runSecurityChecks = useCallback(async () => {
     if (!examDetails || !studentProfile || !validatedStudentId) {
@@ -305,8 +295,6 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
 
     setStage('performingSecurityChecks');
     let allCriticalPassed = true;
-
-    const proctoringEnabledForThisExam = examDetails.enable_webcam_proctoring ?? false;
     
     let currentChecks = [...securityChecks]; 
 
@@ -317,6 +305,7 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
       setSecurityChecks([...currentChecks]); 
       await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 300));
 
+      const proctoringEnabledForThisExam = examDetails.enable_webcam_proctoring ?? false;
       if (check.id === 'webcamAndMediaPipe' && !proctoringEnabledForThisExam) {
         currentChecks[i] = { ...check, status: 'skipped', details: 'Skipped (Proctoring Disabled by Exam Setting)', isCritical: false };
         setSecurityChecks([...currentChecks]);
@@ -735,3 +724,4 @@ export function SebEntryClientNew({ entryTokenFromPath }: SebEntryClientNewProps
   );
 }
 
+    
