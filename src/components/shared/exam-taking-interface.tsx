@@ -1,7 +1,6 @@
 
 'use client';
 
-// Ensure 'use_strict' is properly used or remove if not intended
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -14,14 +13,13 @@ import type { Question, Exam, FlaggedEvent, FlaggedEventType } from '@/types/sup
 import { cn } from "@/lib/utils";
 import logoAsset from '../../../logo.png';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { FaceLandmarker, FilesetResolver, ObjectDetector } from "@mediapipe/tasks-vision";
+import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 
 const FLAG_COOLDOWN_MS = 5000; // 5 seconds
 const NO_FACE_TIMEOUT_MS = 3000; // 3 seconds
 const HEAD_YAW_THRESHOLD = 0.28; // Approx +/- 25-30 degrees
-const OBJECT_DETECTION_SCORE_THRESHOLD = 0.3;
 
 const INITIAL_PROCTOR_UI_WIDTH = 240;
 const INITIAL_PROCTOR_UI_HEIGHT = 180;
@@ -31,6 +29,7 @@ const MAX_PROCTOR_UI_WIDTH = 480;
 const MAX_PROCTOR_UI_HEIGHT = 360;
 const STATUS_BAR_HEIGHT = 32;
 const MEDIA_PIPE_SETUP_TIMEOUT_MS = 30000;
+
 
 interface ExamTakingInterfaceProps {
   examDetails: Exam;
@@ -81,13 +80,12 @@ export function ExamTakingInterface({
   const [isWebcamInitialized, setIsWebcamInitialized] = useState(false);
   const [webcamError, setWebcamError] = useState<string | null>(null);
   const [faceLandmarkerError, setFaceLandmarkerError] = useState<string | null>(null);
-  const [objectDetectorError, setObjectDetectorError] = useState<string | null>(null);
-  const [isObjectDetectorInitialized, setIsObjectDetectorInitialized] = useState<boolean>(false);
+  // ObjectDetector specific state removed
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
-  const objectDetectorRef = useRef<ObjectDetector | null>(null);
+  // objectDetectorRef removed
   const localStreamRef = useRef<MediaStream | null>(null);
   const lastNoFaceTimeRef = useRef<number | null>(null);
   const lastFlagTimesRef = useRef<Record<string, number>>({});
@@ -117,6 +115,7 @@ export function ExamTakingInterface({
     if (examStarted && !actualExamStartTimeState && questions.length > 0 && !parentIsLoading) {
       const startTime = new Date().toISOString();
       setActualExamStartTimeState(startTime);
+      console.log("[ETI] Actual exam start time set:", startTime);
     }
   }, [examStarted, actualExamStartTimeState, questions, parentIsLoading]);
 
@@ -139,8 +138,7 @@ export function ExamTakingInterface({
 
   useEffect(() => { onSubmitExamRef.current = parentOnSubmitExam; }, [parentOnSubmitExam]);
   useEffect(() => { onTimeUpRef.current = parentOnTimeUp; }, [parentOnTimeUp]);
-  // onMediaPipeFlagRef does not need to be in a useEffect as its .current property is directly updated.
-  // useEffect(() => { onMediaPipeFlagRef.current = onMediaPipeFlag; }, [onMediaPipeFlag]);
+  useEffect(() => { onMediaPipeFlagRef.current = onMediaPipeFlag; }, [onMediaPipeFlag]);
   useEffect(() => { onBrowserFlagRef.current = onBrowserFlag; }, [onBrowserFlag]);
 
   useEffect(() => {
@@ -171,6 +169,7 @@ export function ExamTakingInterface({
     if (isDemoMode || !examStarted || !shouldRenderProctoringUI) return;
     const operationId = `[ETI SecurityListeners ${Date.now().toString().slice(-5)}]`;
     console.log(`${operationId} Adding SEB security event listeners (proctoring enabled).`);
+    
     const onContextMenu = (e: MouseEvent) => disableContextMenu(e, handleBrowserFlagEventInternal);
     const onKeyDown = (e: KeyboardEvent) => attemptBlockShortcuts(e, handleBrowserFlagEventInternal);
     const onCopy = (e: ClipboardEvent) => disableCopyPaste(e, handleBrowserFlagEventInternal);
@@ -216,24 +215,22 @@ export function ExamTakingInterface({
     if (!shouldRenderProctoringUI) return;
     const now = Date.now();
     if (lastFlagTimesRef.current[type] && (now - lastFlagTimesRef.current[type] < FLAG_COOLDOWN_MS)) {
-      // console.log(`[ETI emitMediaPipeFlag] Flag ${type} throttled.`);
       return;
     }
     lastFlagTimesRef.current[type] = now;
     console.log(`[ETI emitMediaPipeFlag] Emitting flag: ${type}, Details: ${details || 'N/A'}`);
     onMediaPipeFlagRef.current({ type, details });
-  }, [shouldRenderProctoringUI]);
+  }, [shouldRenderProctoringUI, onMediaPipeFlagRef]);
 
   const predictWebcam = useCallback(async () => {
     const frameId = `[ETI predictWebcam ${Date.now().toString().slice(-4)}]`;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const landmarker = faceLandmarkerRef.current;
-    const objDetector = objectDetectorRef.current;
   
     if (!video || !canvas || !shouldRenderProctoringUI || !isWebcamInitialized) {
-      if (faceLandmarkerRef.current || objectDetectorRef.current) { // Still try to loop if models were initialized but other conditions changed
-          requestRef.current = requestAnimationFrame(predictWebcam);
+      if (faceLandmarkerRef.current) { // Still try to loop if models were initialized but other conditions changed
+        requestRef.current = requestAnimationFrame(predictWebcam);
       }
       return;
     }
@@ -241,31 +238,28 @@ export function ExamTakingInterface({
     const canvasCtx = canvas.getContext('2d');
     if (!canvasCtx) {
       console.error(`${frameId} Canvas context not available.`);
-      if (faceLandmarkerRef.current || objectDetectorRef.current) requestRef.current = requestAnimationFrame(predictWebcam);
+      if (faceLandmarkerRef.current) requestRef.current = requestAnimationFrame(predictWebcam);
       return;
     }
   
-    // Ensure canvas dimensions are set from state
     canvas.width = proctorUiSize.width;
     canvas.height = proctorUiSize.height;
     canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-  
-    // Video readiness check
+    
     if (video.readyState >= video.HAVE_ENOUGH_DATA && video.videoWidth > 0 && video.videoHeight > 0 && !video.paused && !video.ended) {
       try {
         canvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        // console.log(`${frameId} Drew video to canvas. Canvas W: ${canvas.width}, H: ${canvas.height}. Video W: ${video.videoWidth}, H: ${video.videoHeight}`);
       } catch (drawError: any) {
         console.error(`${frameId} Error drawing video to canvas: ${drawError.message}`);
       }
     } else {
-      // console.warn(`${frameId} Video not ready for drawing. State: ${video.readyState}, W: ${video.videoWidth}, H: ${video.videoHeight}, Paused: ${video.paused}`);
-      canvasCtx.fillStyle = 'rgba(30, 41, 59, 0.8)'; // Dark slate for placeholder bg
+      canvasCtx.fillStyle = 'rgba(30, 41, 59, 0.8)'; 
       canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-      canvasCtx.fillStyle = 'rgba(203, 213, 225, 0.9)'; // Light slate for text
+      canvasCtx.fillStyle = 'rgba(203, 213, 225, 0.9)'; 
       canvasCtx.textAlign = 'center';
       canvasCtx.font = '10px Arial';
       canvasCtx.fillText('Video feed loading...', canvas.width / 2, canvas.height / 2);
+      console.warn(`${frameId} Video not ready or not playing. State: ${video.readyState}, W: ${video.videoWidth}, H: ${video.videoHeight}, Paused: ${video.paused}`);
     }
   
     const currentTime = performance.now();
@@ -291,26 +285,12 @@ export function ExamTakingInterface({
         console.error(`${frameId} Error during FaceLandmarker detectForVideo: ${detectError.message}`);
       }
     }
+    // Object detection logic removed
   
-    if (objDetector && isObjectDetectorInitialized) {
-      try {
-        const objectDetections = objDetector.detectForVideo(video, currentTime);
-        if (objectDetections && objectDetections.detections.length > 0) {
-          const detectedCategories = objectDetections.detections
-            .filter(det => det.categories.length > 0 && (det.categories[0].score ?? 0) > OBJECT_DETECTION_SCORE_THRESHOLD)
-            .map(det => det.categories[0].categoryName)
-            .join(', ');
-          if (detectedCategories) emitMediaPipeFlag('SUSPICIOUS_OBJECT_DETECTED', `Detected: ${detectedCategories}`);
-        }
-      } catch (objDetectError: any) {
-        console.error(`${frameId} Error during ObjectDetector detectForVideo: "${objDetectError.message}"`);
-      }
-    }
-  
-    if (faceLandmarkerRef.current || objectDetectorRef.current) { // Only continue loop if models are supposed to be active
+    if (faceLandmarkerRef.current) { 
       requestRef.current = requestAnimationFrame(predictWebcam);
     }
-  }, [emitMediaPipeFlag, proctorUiSize.width, proctorUiSize.height, shouldRenderProctoringUI, isWebcamInitialized, isObjectDetectorInitialized]);
+  }, [emitMediaPipeFlag, proctorUiSize.width, proctorUiSize.height, shouldRenderProctoringUI, isWebcamInitialized]);
   
 
   useEffect(() => {
@@ -324,34 +304,24 @@ export function ExamTakingInterface({
       if (requestRef.current) { cancelAnimationFrame(requestRef.current); requestRef.current = undefined; console.log(`${cleanupId} Cancelled animation frame.`); }
 
       const landmarkerInstanceToClose = faceLandmarkerRef.current;
-      faceLandmarkerRef.current = null;
+      faceLandmarkerRef.current = null; 
       if (landmarkerInstanceToClose && typeof landmarkerInstanceToClose.close === 'function') {
         console.log(`${cleanupId} Closing FaceLandmarker instance...`);
-        try {
-          const closeResult = landmarkerInstanceToClose.close();
-          if (closeResult && typeof closeResult.then === 'function') {
-            closeResult.catch((e: any) => {
-              if (e?.message?.includes("INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")) console.warn(`${cleanupId} MediaPipe Info during FaceLandmarker close (async):`, e.message);
-              else console.error(`${cleanupId} Error closing FaceLandmarker (async):`, e);
-            });
-          } else { console.log(`${cleanupId} FaceLandmarker close() did not return a promise or was undefined.`); }
-        } catch (syncCloseError: any) {
-          if (syncCloseError?.message?.includes("INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")) console.warn(`${cleanupId} MediaPipe Info during FaceLandmarker close (sync):`, syncCloseError.message);
-          else console.error(`${cleanupId} Error closing FaceLandmarker (sync):`, syncCloseError);
+        const closePromise = landmarkerInstanceToClose.close();
+        if (closePromise && typeof closePromise.then === 'function') {
+          closePromise.catch((e:any) => {
+            if (e?.message?.includes("INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")) {
+              console.warn(`${cleanupId} MediaPipe Info during FaceLandmarker close (async):`, e.message);
+            } else {
+              console.error(`${cleanupId} Error closing FaceLandmarker (async):`, e);
+            }
+          });
+        } else {
+          console.warn(`${cleanupId} FaceLandmarker close() did not return a promise or was undefined.`);
         }
       } else { console.log(`${cleanupId} No FaceLandmarker instance to close or close is not a function.`); }
 
-      const objDetectorToClose = objectDetectorRef.current;
-      objectDetectorRef.current = null;
-      if (objDetectorToClose && typeof objDetectorToClose.close === 'function') {
-        console.log(`${cleanupId} Closing ObjectDetector instance...`);
-        try {
-          const closeResult = objDetectorToClose.close();
-          if (closeResult && typeof closeResult.then === 'function') {
-            closeResult.catch((e: any) => console.error(`${cleanupId} Error closing ObjectDetector (async):`, e));
-          } else { console.log(`${cleanupId} ObjectDetector close() did not return a promise or was undefined.`); }
-        } catch (syncCloseErrorOD: any) { console.error(`${cleanupId} Error closing ObjectDetector (sync):`, syncCloseErrorOD); }
-      } else { console.log(`${cleanupId} No ObjectDetector instance to close or close is not a function.`); }
+      // ObjectDetector cleanup removed
 
       if (currentLocalStream) { currentLocalStream.getTracks().forEach(track => track.stop()); console.log(`${cleanupId} Stopped currentLocalStream tracks.`); currentLocalStream = null; }
       if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(track => track.stop()); console.log(`${cleanupId} Stopped localStreamRef.current tracks.`); localStreamRef.current = null; }
@@ -363,8 +333,8 @@ export function ExamTakingInterface({
       } else if (videoElement) { console.log(`${cleanupId} No srcObject on videoElement to stop.`); }
 
       setIsWebcamInitialized(false); setWebcamError(null);
-      setFaceLandmarkerError(null); setObjectDetectorError(null);
-      setIsObjectDetectorInitialized(false);
+      setFaceLandmarkerError(null);
+      // setObjectDetectorError(null); setIsObjectDetectorInitialized(false); // Removed
       console.log(`${cleanupId} Cleanup finished.`);
     };
 
@@ -382,8 +352,8 @@ export function ExamTakingInterface({
       console.log(`${setupId} Conditions met. Proceeding with setup.`);
 
       setIsWebcamInitialized(false); setWebcamError(null);
-      setFaceLandmarkerError(null); setObjectDetectorError(null);
-      setIsObjectDetectorInitialized(false);
+      setFaceLandmarkerError(null);
+      // setObjectDetectorError(null); setIsObjectDetectorInitialized(false); // Removed
 
       try {
         console.log(`${setupId} Requesting user media...`);
@@ -398,7 +368,6 @@ export function ExamTakingInterface({
           try {
             await videoElement.play();
             console.log(`${setupId} videoElement.play() promise resolved.`);
-            // onplaying will handle further MediaPipe setup
           } catch (playError: any) {
             const playErrorMsg = playError.message || "Failed to start video playback.";
             console.error(`${setupId} video.play() promise rejected:`, playErrorMsg, playError);
@@ -410,13 +379,12 @@ export function ExamTakingInterface({
 
         videoElement.onplaying = async () => {
           console.log(`${setupId} Video is now actively playing. Attempting to initialize MediaPipe tasks...`);
-          setIsWebcamInitialized(false); setWebcamError(null); // Reset before attempt
-          setFaceLandmarkerError(null); setObjectDetectorError(null);
-          setIsObjectDetectorInitialized(false);
+          setIsWebcamInitialized(false); setWebcamError(null);
+          setFaceLandmarkerError(null);
+          // setObjectDetectorError(null); setIsObjectDetectorInitialized(false); // Removed
 
-          const mediaPipeSetupCore = async (): Promise<boolean> => {
+          const mediaPipeSetupPromise = (async (): Promise<boolean> => {
             let landmarkerInitSuccess = false;
-            let objDetectorInitSuccess = false;
             console.log(`${setupId} Initializing FilesetResolver for Vision Tasks...`);
             const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
             console.log(`${setupId} FilesetResolver initialized.`);
@@ -434,43 +402,25 @@ export function ExamTakingInterface({
               let flSpecificErrorMsg = flError.message || "Failed to initialize FaceLandmarker.";
               console.error(`${setupId} Error during FaceLandmarker initialization:`, flSpecificErrorMsg, flError);
               setFaceLandmarkerError(flSpecificErrorMsg);
+              landmarkerInitSuccess = false;
             }
-
-            try {
-              console.log(`${setupId} Creating ObjectDetector...`);
-              const objDetector = await ObjectDetector.createFromOptions(vision, {
-                baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite', delegate: 'CPU' },
-                runningMode: 'VIDEO', scoreThreshold: OBJECT_DETECTION_SCORE_THRESHOLD, maxResults: 5
-              });
-              objectDetectorRef.current = objDetector; objDetectorInitSuccess = true;
-              setIsObjectDetectorInitialized(true);
-              console.log(`${setupId} ObjectDetector created successfully.`);
-              setObjectDetectorError(null);
-            } catch (odError: any) {
-              let odSpecificErrorMsg = odError.message || "Failed to initialize ObjectDetector.";
-              console.error(`${setupId} Error during ObjectDetector initialization:`, odSpecificErrorMsg, odError);
-              setObjectDetectorError(odSpecificErrorMsg);
-              setIsObjectDetectorInitialized(false);
-            }
-            return landmarkerInitSuccess && objDetectorInitSuccess;
-          };
+            // ObjectDetector initialization removed
+            return landmarkerInitSuccess;
+          })();
           
           const timeoutPromise = new Promise<boolean>((_, reject) =>
             setTimeout(() => reject(new Error(`MediaPipe setup timed out after ${MEDIA_PIPE_SETUP_TIMEOUT_MS / 1000}s.`)), MEDIA_PIPE_SETUP_TIMEOUT_MS)
           );
 
           try {
-            const setupSuccess = await Promise.race([mediaPipeSetupCore(), timeoutPromise]);
+            const setupSuccess = await Promise.race([mediaPipeSetupPromise, timeoutPromise]);
             if (setupSuccess) {
               setIsWebcamInitialized(true); setWebcamError(null);
-              console.log(`${setupId} Both FaceLandmarker and ObjectDetector initialized successfully. Starting prediction loop.`);
+              console.log(`${setupId} FaceLandmarker initialized successfully. Starting prediction loop.`);
               if (requestRef.current) cancelAnimationFrame(requestRef.current);
               requestRef.current = requestAnimationFrame(predictWebcam);
             } else {
-              const finalErrorParts = [];
-              if (faceLandmarkerError) finalErrorParts.push(`FaceLandmarker: ${faceLandmarkerError}`);
-              if (objectDetectorError) finalErrorParts.push(`ObjectDetector: ${objectDetectorError}`);
-              const finalError = finalErrorParts.length > 0 ? finalErrorParts.join('; ') : "MediaPipe setup completed but indicated an unexpected failure state (likely one or both models failed to init).";
+              const finalError = faceLandmarkerError || "MediaPipe setup completed but indicated an unexpected failure state.";
               console.error(`${setupId} ${finalError}`);
               setWebcamError(finalError); setIsWebcamInitialized(false);
               onMediaPipeFlagRef.current({ type: 'WEBCAM_UNAVAILABLE', details: finalError.substring(0, 150) });
@@ -488,13 +438,13 @@ export function ExamTakingInterface({
         else if (getUserMediaError.name === "NotAllowedError" || getUserMediaError.name === "PermissionDeniedError") { actualErrorMessage = "Webcam permission denied."; flagType = 'WEBCAM_PERMISSION_DENIED'; }
         console.error(`${setupId} Error getting user media (${getUserMediaError.name}):`, actualErrorMessage, getUserMediaError);
         setWebcamError(actualErrorMessage); onMediaPipeFlagRef.current({ type: flagType, details: actualErrorMessage });
-        setIsWebcamInitialized(false); setIsObjectDetectorInitialized(false);
+        setIsWebcamInitialized(false);
       }
     };
 
     setupWebcamAndProctoring();
     return cleanupProctoringInternal;
-  }, [examStarted, examDetails.enable_webcam_proctoring, isDemoMode, onMediaPipeFlagRef]); // Simplified dependencies
+  }, [examStarted, shouldRenderProctoringUI, onMediaPipeFlagRef, predictWebcam]); // predictWebcam added as it's called in setup
 
   const handleProctorUiMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!proctoringUiRef.current || !e.target || !(e.target as HTMLElement).classList.contains('proctor-status-bar-drag-handle')) return;
@@ -600,20 +550,25 @@ export function ExamTakingInterface({
 
   let proctoringStatusText = "Proctoring Off";
   let proctoringStatusDotColor = "ping ping-red";
+  let proctoringUiMessage = "Webcam off / init...";
 
   if (shouldRenderProctoringUI) {
     if (isWebcamInitialized) {
       proctoringStatusText = "Proctoring Active";
       proctoringStatusDotColor = "ping ping-green";
-    } else if (webcamError || faceLandmarkerError || objectDetectorError) {
-      const errorDetail = webcamError || faceLandmarkerError || objectDetectorError || "Unknown error";
+      proctoringUiMessage = ""; // No message if active and feed is shown
+    } else if (webcamError || faceLandmarkerError) {
+      const errorDetail = webcamError || faceLandmarkerError || "Unknown error";
       proctoringStatusText = `Error: ${errorDetail.substring(0, 20)}${errorDetail.length > 20 ? '...' : ''}`;
       proctoringStatusDotColor = "ping ping-red";
+      proctoringUiMessage = faceLandmarkerError ? `Face Detection Error: ${faceLandmarkerError.substring(0,50)}...` : `Webcam Error: ${webcamError ? webcamError.substring(0,50) + '...' : 'Initialization failed'}`;
     } else {
       proctoringStatusText = "Proctoring initializing...";
-      proctoringStatusDotColor = "bg-yellow-500 animate-pulse";
+      proctoringStatusDotColor = "bg-yellow-500 animate-pulse"; // Use a simple pulse if not fully 'ping'
+      proctoringUiMessage = "Proctoring initializing...";
     }
   }
+
 
   if (parentIsLoading && !isSubmittingInternally) {
     return (
@@ -655,20 +610,17 @@ export function ExamTakingInterface({
             </span>
             <Move className="h-3.5 w-3.5 text-muted-foreground/70 ml-auto cursor-grab" />
           </div>
-          <div className="relative flex-grow rounded-b-lg overflow-hidden">
+          <div className="relative flex-grow rounded-b-lg overflow-hidden bg-black"> {/* Added bg-black here for contrast */}
              <canvas
                 ref={canvasRef}
-                className={cn("w-full h-full")} // Removed object-contain, width/height set by attributes
-                width={proctorUiSize.width} // Attributes directly control canvas drawing surface
+                className={cn("w-full h-full")} 
+                width={proctorUiSize.width} 
                 height={proctorUiSize.height}
              />
-            {(!isWebcamInitialized || webcamError || faceLandmarkerError || objectDetectorError) && (
+            {proctoringUiMessage && (
               <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-slate-700/50 rounded-b-lg text-center text-xs text-slate-300 p-2 pointer-events-none">
                 <CameraOffIcon className="h-6 w-6 text-slate-400 mb-1" />
-                {webcamError ? `Error: ${webcamError.substring(0, 50)}${webcamError.length > 50 ? '...' : ''}` :
-                  faceLandmarkerError ? `Face Err: ${faceLandmarkerError.substring(0, 40)}...` :
-                    objectDetectorError ? `Object Err: ${objectDetectorError.substring(0, 38)}...` :
-                      "Proctoring initializing..."}
+                {proctoringUiMessage}
               </div>
             )}
           </div>
@@ -783,4 +735,3 @@ export function ExamTakingInterface({
     </div>
   );
 }
-    

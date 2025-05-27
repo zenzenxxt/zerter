@@ -50,8 +50,8 @@ export type FlaggedEventType =
   | 'MULTIPLE_FACES_DETECTED'
   | 'USER_LOOKING_AWAY'
   | 'WEBCAM_UNAVAILABLE'
-  | 'WEBCAM_PERMISSION_DENIED'
-  | 'SUSPICIOUS_OBJECT_DETECTED';
+  | 'WEBCAM_PERMISSION_DENIED';
+  // SUSPICIOUS_OBJECT_DETECTED removed
 
 export interface FlaggedEvent {
   type: FlaggedEventType;
@@ -77,7 +77,7 @@ export interface Database {
           description: string | null;
           duration: number;
           allow_backtracking: boolean;
-          enable_webcam_proctoring: boolean;
+          enable_webcam_proctoring: boolean; // Changed from boolean | null
           questions: Question[] | null;
           exam_code: string;
           status: ExamStatus;
@@ -93,7 +93,7 @@ export interface Database {
           description?: string | null;
           duration: number;
           allow_backtracking?: boolean;
-          enable_webcam_proctoring: boolean;
+          enable_webcam_proctoring: boolean; // No longer optional
           questions?: Question[] | null;
           exam_code: string;
           status?: ExamStatus;
