@@ -519,7 +519,7 @@ function App() {
                 <div className="flex flex-col lg:flex-row">
                   <div className="lg:w-2/3 p-0 relative h-72 lg:h-auto">
                     <img
-                      src="https://res.cloudinary.com/dcx5ryha9/image/upload/v1748301227/user-panel-business-dashboard_1_ao7aa4.png"
+                      src="https://res.cloudinary.com/dcx5ryha9/image/upload/v1748301932/34bcd7979cfd6b6068297ac2db6e88e5_qhvrnb.jpg"
                       alt="Student Experience"
                       data-ai-hint="student exam"
                       className="w-full h-full object-cover object-center"
@@ -570,7 +570,7 @@ function App() {
                 <div className="flex flex-col lg:flex-row">
                   <div className="lg:w-2/3 p-0 relative h-72 lg:h-auto">
                     <img
-                      src="https://res.cloudinary.com/dcx5ryha9/image/upload/v1748301227/user-panel-business-dashboard_1_ao7aa4.png"
+                      src="https://res.cloudinary.com/dcx5ryha9/image/upload/v1748301933/f4eea481b478591866a82d2e02a551fa_lixawy.jpg"
                       alt="Admin Controls"
                       data-ai-hint="admin panel"
                       className="w-full h-full object-cover object-center"
@@ -710,7 +710,7 @@ function App() {
               <div className="flex items-center mb-6">
                 <div className="w-14 h-14 rounded-full bg-gray-200 overflow-hidden mr-4 shrink-0">
                   <img 
-                    src="https://placehold.co/56x56.png" 
+                    src="https://res.cloudinary.com/dcx5ryha9/image/upload/v1748301933/d05d5c2718816512ceb677de7c75a694_pmyuyz.jpg" 
                     alt="Dr. Rebecca Chen"
                     data-ai-hint="woman portrait"
                     className="w-full h-full object-cover"
@@ -738,7 +738,7 @@ function App() {
               <div className="flex items-center mb-6">
                 <div className="w-14 h-14 rounded-full bg-gray-200 overflow-hidden mr-4 shrink-0">
                   <img 
-                    src="https://placehold.co/56x56.png" 
+                    src="https://res.cloudinary.com/dcx5ryha9/image/upload/v1748301933/8e8292b09180e6f1d99d4e7a2d12cc75_annkay.jpg" 
                     alt="James Martinez"
                     data-ai-hint="man portrait"
                     className="w-full h-full object-cover"
@@ -766,7 +766,7 @@ function App() {
               <div className="flex items-center mb-6">
                 <div className="w-14 h-14 rounded-full bg-gray-200 overflow-hidden mr-4 shrink-0">
                   <img 
-                    src="https://placehold.co/56x56.png" 
+                    src="https://res.cloudinary.com/dcx5ryha9/image/upload/v1748301981/b2971b9bfe36081751e87bcef50d68ea_ut3jus.jpg" 
                     alt="Dr. Sarah Adams"
                     data-ai-hint="woman professional"
                     className="w-full h-full object-cover"
