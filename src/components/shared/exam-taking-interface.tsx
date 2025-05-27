@@ -13,7 +13,7 @@ import type { Question, Exam, FlaggedEvent, FlaggedEventType } from '@/types/sup
 import { cn } from "@/lib/utils";
 import logoAsset from '../../../logo.png';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { FaceLandmarker, FilesetResolver, VisionRunningMode } from "@mediapipe/tasks-vision";
+import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 
@@ -42,10 +42,11 @@ const HEAD_YAW_THRESHOLD = 0.28;
 const INITIAL_PROCTOR_UI_WIDTH = 240;
 const INITIAL_PROCTOR_UI_HEIGHT = 180;
 const MIN_PROCTOR_UI_WIDTH = 160;
-const MIN_PROCTOR_UI_HEIGHT = 120;
 const MAX_PROCTOR_UI_WIDTH = 480;
+const MIN_PROCTOR_UI_HEIGHT = 120;
 const MAX_PROCTOR_UI_HEIGHT = 360;
 const STATUS_BAR_HEIGHT = 32;
+
 
 export function ExamTakingInterface({
   examDetails,
@@ -106,7 +107,6 @@ export function ExamTakingInterface({
 
   useEffect(() => {
     if (examStarted && !actualExamStartTimeState && questions.length > 0 && !parentIsLoading) {
-      console.log("[ExamTakingInterface] Setting actual exam start time state.");
       setActualExamStartTimeState(new Date().toISOString());
     }
   }, [examStarted, actualExamStartTimeState, questions, parentIsLoading]);
@@ -140,7 +140,12 @@ export function ExamTakingInterface({
   }, [currentQuestion, visitedQuestions]);
 
   const handleBrowserFlagEventInternal = useCallback((eventData: { type: FlaggedEventType; details?: string }) => {
-    if (isDemoMode || !shouldRenderProctoringUI) return;
+    if (isDemoMode) return; // Only flag if not in demo mode
+    // Check if shouldRenderProctoringUI is true to only allow browser flags if webcam proctoring is generally active,
+    // or decide if browser flags should be independent. For now, let's link them loosely.
+    // If you want browser flags regardless of webcam proctoring setting, remove the shouldRenderProctoringUI check here.
+    if (!shouldRenderProctoringUI) return; 
+
     onBrowserFlagRef.current(eventData);
     toast({
       title: "Activity Alert (System)",
@@ -187,9 +192,8 @@ export function ExamTakingInterface({
   }, [answers, isDemoMode, toast, parentIsLoading, examStarted, isSubmittingInternally, actualExamStartTimeState]);
 
   useEffect(() => {
-    if (!examStarted) return;
-    if (timeLeftSeconds <= 0) {
-      if (!isSubmittingInternally) {
+    if (!examStarted || timeLeftSeconds <= 0) {
+      if (examStarted && !isSubmittingInternally && timeLeftSeconds <= 0) {
         handleTimeUpCallback();
       }
       return;
@@ -204,17 +208,17 @@ export function ExamTakingInterface({
     if (!shouldRenderProctoringUI) return;
     const now = Date.now();
     if (lastFlagTimesRef.current[type] && (now - lastFlagTimesRef.current[type] < FLAG_COOLDOWN_MS)) {
-      console.log(`[MediaPipeFlag Throttled] Type: ${type}`);
       return;
     }
-    console.log(`[MediaPipeFlag Emitted] Type: ${type}, Details: ${details || 'N/A'}`);
     lastFlagTimesRef.current[type] = now;
     onMediaPipeFlagRef.current({ type, details });
   }, [shouldRenderProctoringUI, onMediaPipeFlagRef]);
 
   const predictWebcam = useCallback(async () => {
     if (!faceLandmarkerRef.current || !videoRef.current || !canvasRef.current) {
-      if (faceLandmarkerRef.current && requestRef.current) requestAnimationFrame(predictWebcam);
+      if (faceLandmarkerRef.current && requestRef.current) { // Check if landmarker still exists before RAF
+          requestAnimationFrame(predictWebcam);
+      }
       return;
     }
     const video = videoRef.current;
@@ -233,7 +237,7 @@ export function ExamTakingInterface({
     try {
       results = landmarker.detectForVideo(video, performance.now());
     } catch (detectError: any) {
-      console.error("[ExamTakingInterface] Error during MediaPipe detectForVideo:", detectError.message, detectError);
+      console.error("[ExamTakingInterface predictWebcam] Error during MediaPipe detectForVideo:", detectError.message, detectError);
       if (faceLandmarkerRef.current) requestRef.current = requestAnimationFrame(predictWebcam);
       return;
     }
@@ -264,7 +268,7 @@ export function ExamTakingInterface({
       try {
         canvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
       } catch (drawError: any) {
-        console.error("[ExamTakingInterface] Error during canvas drawImage:", drawError.message, drawError);
+        console.error("[ExamTakingInterface predictWebcam] Error during canvas drawImage:", drawError.message, drawError);
       }
     }
     
@@ -273,144 +277,171 @@ export function ExamTakingInterface({
     }
   }, [emitMediaPipeFlag, proctorUiSize]);
 
+
   useEffect(() => {
     const videoElement = videoRef.current;
-    let vision: FilesetResolver | null = null;
-    let localStreamForCleanup: MediaStream | null = null;
-
-    const cleanupProctoring = () => {
-      console.log("[ExamTakingInterface Cleanup] Starting cleanup...");
-      if (requestRef.current) {
-        cancelAnimationFrame(requestRef.current);
-        requestRef.current = undefined;
-        console.log("[ExamTakingInterface Cleanup] Cancelled animation frame.");
-      }
-
-      const landmarkerInstanceToClose = faceLandmarkerRef.current;
-      faceLandmarkerRef.current = null; // Important: Set to null before async close
-
-      if (landmarkerInstanceToClose && typeof landmarkerInstanceToClose.close === 'function') {
-        console.log("[ExamTakingInterface Cleanup] Closing FaceLandmarker instance...");
-        try {
-          const closePromise = landmarkerInstanceToClose.close();
-          if (closePromise && typeof closePromise.then === 'function') {
-            closePromise
-              .then(() => console.log("[ExamTakingInterface Cleanup] FaceLandmarker closed successfully via promise."))
-              .catch((e: any) => {
-                if (e?.message?.includes("INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")) {
-                  console.warn("[ExamTakingInterface Cleanup] MediaPipe Info during close (async):", e.message);
-                } else {
-                  console.error("[ExamTakingInterface Cleanup] Error closing FaceLandmarker (async):", e);
-                }
-              });
-          } else {
-            console.warn("[ExamTakingInterface Cleanup] FaceLandmarker.close() did not return a promise.");
-          }
-        } catch (syncCloseError: any) {
-           if (syncCloseError?.message?.includes("INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")) {
-              console.warn("[ExamTakingInterface Cleanup] MediaPipe Info during close (sync):", syncCloseError.message);
-           } else {
-              console.error("[ExamTakingInterface Cleanup] Error closing FaceLandmarker (sync):", syncCloseError);
-           }
-        }
-      } else {
-        console.log("[ExamTakingInterface Cleanup] No active FaceLandmarker instance to close or close is not a function.");
-      }
-
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(track => track.stop());
-        localStreamRef.current = null;
-        console.log("[ExamTakingInterface Cleanup] Stopped localStreamRef tracks.");
-      }
-      
-      if (videoElement && videoElement.srcObject) {
-        (videoElement.srcObject as MediaStream).getTracks().forEach(track => track.stop());
-        videoElement.srcObject = null;
-        console.log("[ExamTakingInterface Cleanup] Stopped videoElement srcObject tracks.");
-      }
-      setIsWebcamInitialized(false);
-      console.log("[ExamTakingInterface Cleanup] Completed. isWebcamInitialized set to false.");
-    };
+    let currentLocalStream: MediaStream | null = null;
+    const operationId = `[ETI WebcamSetupEffect ${Date.now().toString().slice(-4)}]`;
 
     const setupWebcamAndFaceLandmarker = async () => {
-      console.log("[ExamTakingInterface Setup] Attempting to setup webcam and FaceLandmarker...");
-      setIsWebcamInitialized(false); 
-      setWebcamError(null);
+      console.log(`${operationId} Initiating setup. shouldRenderProctoringUI: ${shouldRenderProctoringUI}`);
       
+      // Reset states before attempting setup
+      setIsWebcamInitialized(false);
+      setWebcamError(null);
+
       if (!videoElement) {
-        console.error("[ExamTakingInterface Setup] Video element ref not found.");
+        console.error(`${operationId} Video element ref not found.`);
         setWebcamError("Video element not available.");
         onMediaPipeFlagRef.current({ type: 'WEBCAM_UNAVAILABLE', details: "Video element ref missing."});
         return;
       }
 
       try {
+        console.log(`${operationId} Requesting user media...`);
         const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 320 }, height: { ideal: 240 } } });
-        console.log("[ExamTakingInterface Setup] User media stream obtained.");
-        localStreamRef.current = stream;
-        localStreamForCleanup = stream; // For cleanup
+        currentLocalStream = stream; // Assign to effect-scoped variable
+        localStreamRef.current = stream; // Assign to ref for broader access if needed by cleanup immediately
+        console.log(`${operationId} User media stream obtained. Assigning to video element.`);
         videoElement.srcObject = stream;
 
         videoElement.onloadedmetadata = async () => {
-          console.log("[ExamTakingInterface Setup] Video metadata loaded.");
+          console.log(`${operationId} Video metadata loaded. Attempting to play video.`);
           try {
             await videoElement.play();
+            console.log(`${operationId} video.play() promise resolved.`);
+            // onplaying event will handle MediaPipe init
           } catch (playError: any) {
-            console.error("[ExamTakingInterface Setup] Video play() promise rejected:", playError.message, playError);
+            console.error(`${operationId} video.play() promise rejected:`, playError.message, playError);
             setWebcamError(playError.message || "Failed to start video playback.");
             onMediaPipeFlagRef.current({ type: 'WEBCAM_UNAVAILABLE', details: `Video play error: ${playError.message}` });
-            setIsWebcamInitialized(false); 
+            setIsWebcamInitialized(false); // Explicitly set this on play error
           }
         };
         
         videoElement.onplaying = async () => {
-          console.log("[ExamTakingInterface Setup] Video is now actively playing. Initializing MediaPipe...");
-          setIsWebcamInitialized(false); setWebcamError(null); // Reset before MediaPipe init attempt
+          console.log(`${operationId} Video is now actively playing. Initializing MediaPipe...`);
+          setIsWebcamInitialized(false); // Reset before MediaPipe attempt
+          setWebcamError(null);
           try {
-            vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+            console.log(`${operationId} Initializing FilesetResolver...`);
+            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+            console.log(`${operationId} FilesetResolver initialized.`);
+
+            console.log(`${operationId} Creating FaceLandmarker with CPU delegate...`);
             const landmarker = await FaceLandmarker.createFromOptions(vision, {
               baseOptions: { 
                 modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`, 
                 delegate: "CPU" // Force CPU delegate
               },
               outputFaceBlendshapes: true, 
-              runningMode: VisionRunningMode.VIDEO, 
+              runningMode: 'VIDEO', 
               numFaces: 2,
             });
-            console.log("[ExamTakingInterface Setup] FaceLandmarker initialized successfully.");
+            console.log(`${operationId} FaceLandmarker created successfully.`);
             faceLandmarkerRef.current = landmarker; 
             setIsWebcamInitialized(true); 
             setWebcamError(null);
+            console.log(`${operationId} Proctoring initialized successfully. Starting prediction loop.`);
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
             requestRef.current = requestAnimationFrame(predictWebcam);
           } catch (landmarkerError: any) {
             let actualErrorMessage = landmarkerError.message || "Failed to initialize MediaPipe FaceLandmarker.";
-            console.error("[ExamTakingInterface Setup] Error initializing FaceLandmarker:", actualErrorMessage, landmarkerError);
+            console.error(`${operationId} Error during MediaPipe FaceLandmarker initialization:`, actualErrorMessage, landmarkerError);
             setWebcamError(actualErrorMessage);
             onMediaPipeFlagRef.current({ type: 'WEBCAM_UNAVAILABLE', details: `MediaPipe init error: ${actualErrorMessage.substring(0,100)}` });
             setIsWebcamInitialized(false); 
           }
         };
-      } catch (err: any) {
+      } catch (getUserMediaError: any) {
         let flagType: FlaggedEventType = 'WEBCAM_UNAVAILABLE'; 
-        let actualErrorMessage = err.message || "Webcam is unavailable or access was denied.";
-        if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") flagType = 'WEBCAM_UNAVAILABLE';
-        else if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") flagType = 'WEBCAM_PERMISSION_DENIED';
-        
-        console.error(`[ExamTakingInterface Setup] Error getting user media (${err.name}):`, actualErrorMessage, err);
+        let actualErrorMessage = getUserMediaError.message || "Webcam is unavailable or access was denied.";
+        if (getUserMediaError.name === "NotFoundError" || getUserMediaError.name === "DevicesNotFoundError") {
+            actualErrorMessage = "No webcam found or webcam is disconnected.";
+            flagType = 'WEBCAM_UNAVAILABLE';
+        } else if (getUserMediaError.name === "NotAllowedError" || getUserMediaError.name === "PermissionDeniedError") {
+            actualErrorMessage = "Webcam access permission was denied by the user.";
+            flagType = 'WEBCAM_PERMISSION_DENIED';
+        }
+        console.error(`${operationId} Error getting user media (${getUserMediaError.name}):`, actualErrorMessage, getUserMediaError);
         setWebcamError(actualErrorMessage); 
         onMediaPipeFlagRef.current({ type: flagType, details: actualErrorMessage }); 
         setIsWebcamInitialized(false); 
       }
     };
 
+    const cleanupProctoringInternal = () => {
+        const cleanupId = `[ETI WebcamCleanup ${Date.now().toString().slice(-4)}]`;
+        console.log(`${cleanupId} Starting cleanup.`);
+        if (requestRef.current) {
+            cancelAnimationFrame(requestRef.current);
+            requestRef.current = undefined;
+            console.log(`${cleanupId} Cancelled animation frame.`);
+        }
+
+        const landmarkerInstanceToClose = faceLandmarkerRef.current;
+        faceLandmarkerRef.current = null; 
+
+        if (landmarkerInstanceToClose && typeof landmarkerInstanceToClose.close === 'function') {
+            console.log(`${cleanupId} Closing FaceLandmarker instance...`);
+            try {
+                const closeResult = landmarkerInstanceToClose.close();
+                if (closeResult && typeof closeResult.then === 'function') {
+                    closeResult
+                        .then(() => console.log(`${cleanupId} FaceLandmarker closed successfully via promise.`))
+                        .catch((e: any) => {
+                            if (e?.message?.includes("INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")) {
+                                console.warn(`${cleanupId} MediaPipe Info during close (async):`, e.message);
+                            } else {
+                                console.error(`${cleanupId} Error closing FaceLandmarker (async):`, e);
+                            }
+                        });
+                } else {
+                    console.warn(`${cleanupId} FaceLandmarker.close() did not return a promise. Assuming synchronous close or no-op.`);
+                }
+            } catch (syncCloseError: any) {
+                if (syncCloseError?.message?.includes("INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")) {
+                    console.warn(`${cleanupId} MediaPipe Info during close (sync):`, syncCloseError.message);
+                } else {
+                    console.error(`${cleanupId} Error closing FaceLandmarker (sync):`, syncCloseError);
+                }
+            }
+        } else {
+            console.log(`${cleanupId} No active FaceLandmarker instance to close or close is not a function.`);
+        }
+
+        const streamToStop = currentLocalStream || localStreamRef.current; // Prioritize stream obtained in this effect run
+        if (streamToStop) {
+            streamToStop.getTracks().forEach(track => track.stop());
+            console.log(`${cleanupId} Stopped localStreamRef tracks.`);
+        } else {
+            console.log(`${cleanupId} No localStreamRef to stop.`);
+        }
+        
+        if (videoElement && videoElement.srcObject) {
+            const vidStream = videoElement.srcObject as MediaStream;
+            if (vidStream && typeof vidStream.getTracks === 'function') {
+                vidStream.getTracks().forEach(track => track.stop());
+            }
+            videoElement.srcObject = null;
+            console.log(`${cleanupId} Stopped videoElement srcObject tracks and cleared srcObject.`);
+        } else {
+             console.log(`${cleanupId} No srcObject on videoElement to stop.`);
+        }
+        setIsWebcamInitialized(false);
+        console.log(`${cleanupId} Cleanup completed. isWebcamInitialized set to false.`);
+    };
+
+
     if (examStarted && shouldRenderProctoringUI) {
+      console.log(`${operationId} Conditions met for setup. Calling setupWebcamAndFaceLandmarker.`);
       setupWebcamAndFaceLandmarker();
     } else {
-      cleanupProctoring();
+      console.log(`${operationId} Conditions NOT met for setup OR shouldRenderProctoringUI is false. Ensuring cleanup.`);
+      cleanupProctoringInternal();
     }
 
-    return cleanupProctoring;
+    return cleanupProctoringInternal;
   }, [examStarted, shouldRenderProctoringUI, onMediaPipeFlagRef, predictWebcam]); 
 
   useEffect(() => {
@@ -421,10 +452,12 @@ export function ExamTakingInterface({
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = 'rgba(50,50,50,0.8)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = 'white'; ctx.textAlign = 'center'; ctx.font = '10px Arial';
-        const message = webcamError || 'Webcam off / Initializing...';
-        const lines = []; const maxCharsPerLine = Math.floor(canvas.width / 6);
-        for (let i = 0; i < message.length; i += maxCharsPerLine) lines.push(message.substring(i, i + maxCharsPerLine));
-        lines.forEach((line, index) => ctx.fillText(line, canvas.width / 2, canvas.height / 2 - (lines.length / 2 - index - 0.5) * 12));
+        const message = webcamError ? `Error: ${webcamError.substring(0,30)}${webcamError.length > 30 ? '...' : ''}` : 'Webcam off / Initializing...';
+        const lines = []; const maxCharsPerLine = Math.floor(canvas.width / 6); // Approx 6px per char
+        if(message) {
+            for (let i = 0; i < message.length; i += maxCharsPerLine) lines.push(message.substring(i, i + maxCharsPerLine));
+            lines.forEach((line, index) => ctx.fillText(line, canvas.width / 2, canvas.height / 2 - (lines.length / 2 - index - 0.5) * 12));
+        }
       }
     }
   }, [isWebcamInitialized, webcamError, shouldRenderProctoringUI, proctorUiSize]);
